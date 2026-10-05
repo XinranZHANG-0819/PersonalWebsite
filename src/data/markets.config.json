@@ -1,0 +1,18 @@
+{
+  "categories": [
+    { "id": "a-share", "name": "A 股" },
+    { "id": "bond", "name": "债券" },
+    { "id": "us-stock", "name": "美股" },
+    { "id": "gold", "name": "黄金与汇率" }
+  ],
+  "series": [
+    { "id": "sh000001", "category": "a-share", "name": "上证指数", "symbol": "000001.SS", "decimals": 2, "kind": "index" },
+    { "id": "sh000300", "category": "a-share", "name": "沪深 300", "symbol": "000300.SS", "decimals": 2, "kind": "index" },
+    { "id": "sz399006", "category": "a-share", "name": "创业板指", "symbol": "399006.SZ", "decimals": 2, "kind": "index" },
+    { "id": "us10y", "category": "bond", "name": "美国 10 年国债收益率", "symbol": "^TNX", "decimals": 2, "kind": "yield", "suffix": "%" },
+    { "id": "spx", "category": "us-stock", "name": "标普 500", "symbol": "^GSPC", "decimals": 2, "kind": "index" },
+    { "id": "ndx", "category": "us-stock", "name": "纳斯达克 100", "symbol": "^NDX", "decimals": 2, "kind": "index" },
+    { "id": "gold", "category": "gold", "name": "COMEX 黄金", "symbol": "GC=F", "decimals": 2, "kind": "price", "prefix": "$" },
+    { "id": "usdcny", "category": "gold", "name": "美元兑人民币", "symbol": "CNY=X", "decimals": 4, "kind": "price" }
+  ]
+}

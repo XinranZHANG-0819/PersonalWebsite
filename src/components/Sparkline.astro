@@ -1,0 +1,18 @@
+---
+// 迷你走势线（服务端生成，不依赖脚本）。points 为数值数组。
+interface Props { values: number[]; }
+const { values } = Astro.props;
+const W = 120, H = 32, pad = 2;
+const min = Math.min(...values), max = Math.max(...values);
+const span = max - min || 1;
+const step = values.length > 1 ? W / (values.length - 1) : 0;
+const d = values
+  .map((v, i) => `${i ? 'L' : 'M'}${(i * step).toFixed(1)} ${(H - pad - ((v - min) / span) * (H - pad * 2)).toFixed(1)}`)
+  .join(' ');
+---
+<svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" class="spark" aria-hidden="true">
+  <path d={d} fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" />
+</svg>
+<style>
+  .spark { width: 100%; height: 32px; display: block; }
+</style>

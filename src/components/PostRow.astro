@@ -1,0 +1,9 @@
+---
+interface Props { href: string; title: string; date: Date; }
+const { href, title, date } = Astro.props;
+const d = date.toISOString().slice(0, 10);
+---
+<a class="post-row" href={href}>
+  <span class="t">{title}</span>
+  <time class="d" datetime={d}>{d}</time>
+</a>

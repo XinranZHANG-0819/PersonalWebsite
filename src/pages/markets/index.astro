@@ -1,0 +1,161 @@
+---
+import Base from '../../layouts/Base.astro';
+import { categories, quotes, arrow, fmt, updatedAt, isDemo } from '../../lib-markets';
+
+const all = quotes();
+const stamp = updatedAt ? updatedAt.slice(0, 16).replace('T', ' ') + ' UTC' : '';
+const payload = Object.fromEntries(
+  all.map((q) => [q.id, { name: q.name, decimals: q.decimals, prefix: q.prefix, suffix: q.suffix, kind: q.kind, points: q.points }]),
+);
+---
+<Base title="看板" description="A 股、债券、美股、黄金等指标的走势。">
+  <h1 class="page-title">看板</h1>
+  <p class="page-lead">我关注的指标随时间的变化。数据每天自动更新，不是实时行情。</p>
+
+  <div class="bar">
+    <div class="ranges" role="group" aria-label="时间范围">
+      <button type="button" data-range="30">1 月</button>
+      <button type="button" data-range="182">6 月</button>
+      <button type="button" data-range="365" class="on">1 年</button>
+      <button type="button" data-range="1095">3 年</button>
+    </div>
+    <span class="stamp">{isDemo ? '示例数据 · ' : ''}更新于 {stamp}</span>
+  </div>
+
+  {all.length === 0 && <p class="empty">还没有数据。运行 <code>npm run fetch-data</code> 抓取一次。</p>}
+
+  {categories.map((c) => {
+    const list = all.filter((q) => q.category === c.id);
+    if (!list.length) return null;
+    return (
+      <section class="block" style="padding-top: 40px">
+        <div class="head"><h2>{c.name}</h2><span>{list.length} 项</span></div>
+        <div class="cards">
+          {list.map((q) => (
+            <div class="card" data-id={q.id}>
+              <div class="row1">
+                <span class="n">{q.name}</span>
+                <span class="rc mono" data-rc></span>
+              </div>
+              <div class="v mono">{q.prefix}{fmt(q.last, q.decimals)}{q.suffix}</div>
+              <div class={`c mono ${q.dir}`}>{arrow(q.dir)} {q.changeText} <span class="muted">较上一交易日</span></div>
+              <div class="chart" data-chart></div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  })}
+
+  <p class="note">涨跌颜色为红涨绿跌。数据来自 Yahoo Finance，仅供个人参考，不构成投资建议。</p>
+
+  <script type="application/json" id="mk-data" set:html={JSON.stringify(payload)} />
+</Base>
+
+<style>
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 36px; }
+  .ranges { display: flex; gap: 4px; }
+  .ranges button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .ranges button:hover { color: var(--ink); }
+  .ranges button.on { color: var(--ink); border-color: var(--line); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .stamp { font-size: 12.5px; color: var(--ink-3); font-family: var(--mono); }
+  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 40px; margin-top: 24px; }
+  .card { min-width: 0; }
+  .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .n { font-size: 14px; color: var(--ink-2); }
+  .mono { font-family: var(--mono); }
+  .rc { font-size: 12.5px; }
+  .v { font-size: 24px; font-weight: 500; letter-spacing: -0.02em; margin-top: 4px; }
+  .c { font-size: 13px; }
+  .muted { color: var(--ink-3); font-family: var(--sans); }
+  .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
+  .chart { position: relative; margin-top: 12px; height: 120px; }
+  .note { margin-top: 56px; font-size: 13px; color: var(--ink-3); }
+  @media (max-width: 640px) { .cards { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<script>
+  type Pt = [string, number];
+  interface S { name: string; decimals: number; prefix: string; suffix: string; kind: string; points: Pt[]; }
+  const data: Record<string, S> = JSON.parse(document.getElementById('mk-data')!.textContent || '{}');
+  let days = 365;
+  const NS = 'http://www.w3.org/2000/svg';
+  const H = 120, PAD = 6;
+  const fmt = (v: number, d: number) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  function slice(s: S): Pt[] {
+    const last = new Date(s.points[s.points.length - 1][0] + 'T00:00:00Z').getTime();
+    const from = last - days * 86400000;
+    const out = s.points.filter((p) => new Date(p[0] + 'T00:00:00Z').getTime() >= from);
+    return out.length >= 2 ? out : s.points.slice(-2);
+  }
+  const el = (n: string, a: Record<string, string>) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+  function renderCard(card: HTMLElement) {
+    const s = data[card.dataset.id!]; if (!s) return;
+    const box = card.querySelector<HTMLElement>('[data-chart]')!;
+    const rc = card.querySelector<HTMLElement>('[data-rc]')!;
+    const pts = slice(s);
+    const W = Math.max(box.clientWidth, 120);
+    const vals = pts.map((p) => p[1]);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const padv = (hi - lo) * 0.08 || 1; lo -= padv; hi += padv;
+    const x = (i: number) => (i / (pts.length - 1)) * W;
+    const y = (v: number) => PAD + (1 - (v - lo) / (hi - lo)) * (H - PAD * 2);
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(' ');
+
+    const first = vals[0], last = vals[vals.length - 1];
+    const dir = last > first ? 'up' : last < first ? 'down' : 'flat';
+    rc.className = `rc mono ${dir}`;
+    rc.textContent = s.kind === 'yield'
+      ? `${last >= first ? '+' : '−'}${Math.abs((last - first) * 100).toFixed(0)} bp`
+      : `${last >= first ? '+' : '−'}${Math.abs(((last - first) / first) * 100).toFixed(2)}%`;
+
+    box.textContent = '';
+    const svg = el('svg', { width: String(W), height: String(H), viewBox: `0 0 ${W} ${H}`, role: 'img',
+      'aria-label': `${s.name}，${pts[0][0]} 至 ${pts[pts.length - 1][0]}，从 ${fmt(first, s.decimals)} 到 ${fmt(last, s.decimals)}` });
+    svg.style.display = 'block'; svg.style.touchAction = 'pan-y';
+    // faint baseline grid: min / max
+    for (const gv of [lo + padv, hi - padv]) svg.appendChild(el('line', { x1: '0', x2: String(W), y1: String(y(gv)), y2: String(y(gv)), stroke: 'var(--line)', 'stroke-width': '1' }));
+    svg.appendChild(el('path', { d: `${line} L${W} ${H} L0 ${H} Z`, fill: 'var(--accent)', opacity: '0.08' }));
+    svg.appendChild(el('path', { d: line, fill: 'none', stroke: 'var(--accent)', 'stroke-width': '2', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    // end dot with surface ring
+    svg.appendChild(el('circle', { cx: String(x(pts.length - 1) - 0), cy: String(y(last)), r: '5', fill: 'var(--bg)' }));
+    svg.appendChild(el('circle', { cx: String(x(pts.length - 1)), cy: String(y(last)), r: '3.5', fill: 'var(--accent)' }));
+    // hover layer
+    const cross = el('line', { y1: '0', y2: String(H), stroke: 'var(--ink-3)', 'stroke-width': '1', visibility: 'hidden' });
+    const dot = el('circle', { r: '4', fill: 'var(--accent)', stroke: 'var(--bg)', 'stroke-width': '2', visibility: 'hidden' });
+    svg.appendChild(cross); svg.appendChild(dot);
+    box.appendChild(svg);
+    const tip = document.createElement('div');
+    tip.style.cssText = 'position:absolute;top:0;pointer-events:none;visibility:hidden;font:12px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;white-space:nowrap;color:var(--ink)';
+    box.appendChild(tip);
+
+    function show(clientX: number) {
+      const r = svg.getBoundingClientRect();
+      const i = Math.max(0, Math.min(pts.length - 1, Math.round(((clientX - r.left) / r.width) * (pts.length - 1))));
+      const px = x(i), py = y(pts[i][1]);
+      cross.setAttribute('x1', String(px)); cross.setAttribute('x2', String(px)); cross.setAttribute('visibility', 'visible');
+      dot.setAttribute('cx', String(px)); dot.setAttribute('cy', String(py)); dot.setAttribute('visibility', 'visible');
+      tip.textContent = `${pts[i][0]}  ${s.prefix}${fmt(pts[i][1], s.decimals)}${s.suffix}`;
+      tip.style.visibility = 'visible';
+      const tw = tip.offsetWidth;
+      tip.style.left = Math.max(0, Math.min(W - tw, px - tw / 2)) + 'px';
+    }
+    function hide() { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); tip.style.visibility = 'hidden'; }
+    svg.addEventListener('pointermove', (e) => show(e.clientX));
+    svg.addEventListener('pointerleave', hide);
+  }
+
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('.card'));
+  const renderAll = () => cards.forEach(renderCard);
+  renderAll();
+  let t: number;
+  window.addEventListener('resize', () => { clearTimeout(t); t = window.setTimeout(renderAll, 120); });
+  new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  document.querySelectorAll<HTMLButtonElement>('[data-range]').forEach((b) => b.addEventListener('click', () => {
+    days = Number(b.dataset.range);
+    document.querySelectorAll('[data-range]').forEach((o) => o.classList.toggle('on', o === b));
+    renderAll();
+  }));
+</script>

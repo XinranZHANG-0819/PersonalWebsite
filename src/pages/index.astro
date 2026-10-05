@@ -1,0 +1,66 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import Particles from '../components/Particles.astro';
+import PostRow from '../components/PostRow.astro';
+import Sparkline from '../components/Sparkline.astro';
+import { quotes, arrow, fmt, updatedAt, isDemo } from '../lib-markets';
+
+const posts = (await getCollection('blog', (p) => !p.data.draft)).sort((a, b) => +b.data.date - +a.data.date).slice(0, 5);
+const notes = (await getCollection('notes', (n) => !n.data.draft)).sort((a, b) => +b.data.updated - +a.data.updated);
+const topics = [...new Set(notes.map((n) => n.data.topic))];
+const featured = ['sh000300', 'us10y', 'spx', 'gold'];
+const all = quotes();
+const tiles = featured.map((id) => all.find((q) => q.id === id)).filter(Boolean) as ReturnType<typeof quotes>;
+const stamp = updatedAt ? updatedAt.slice(0, 16).replace('T', ' ') + ' UTC' : '';
+---
+<Base>
+  <div class="hero">
+    <Particles />
+    <div class="hero-copy">
+      <h1>你好，我是 Xinran。</h1>
+      <p>记录投资与阅读的思考，整理长期积累的知识，也追踪我关心的市场指标。</p>
+    </div>
+    <div class="hero-hint">移动鼠标，推开粒子</div>
+  </div>
+
+  {tiles.length > 0 && (
+    <section class="block" style="padding-top: 24px">
+      <div class="head"><h2>市场</h2><a href="/markets/">{isDemo ? '示例数据 · ' : ''}{stamp} · 全部看板 →</a></div>
+      <div class="tiles">
+        {tiles.map((q) => (
+          <a class="tile" href="/markets/">
+            <span class="n">{q.name}</span>
+            <span class="v">{q.prefix}{fmt(q.last, q.decimals)}{q.suffix}</span>
+            <span class={`c ${q.dir}`}>{arrow(q.dir)} {q.changeText}</span>
+            <Sparkline values={q.points.slice(-60).map((p) => p[1])} />
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  <section class="block">
+    <div class="head"><h2>最近文章</h2><a href="/blog/">全部 →</a></div>
+    {posts.length ? posts.map((p) => <PostRow href={`/blog/${p.id}/`} title={p.data.title} date={p.data.date} />) : <p class="empty">还没有文章。</p>}
+  </section>
+
+  {topics.length > 0 && (
+    <section class="block">
+      <div class="head"><h2>知识库</h2><a href="/notes/">全部 →</a></div>
+      <div class="topics">{topics.map((t) => <a href={`/notes/#${encodeURIComponent(t)}`}>{t}</a>)}</div>
+    </section>
+  )}
+</Base>
+
+<style>
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px; margin-top: 24px; }
+  .tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .n { font-size: 13px; color: var(--ink-2); }
+  .v { font-family: var(--mono); font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
+  .c { font-family: var(--mono); font-size: 13px; margin-bottom: 8px; }
+  .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
+  .topics { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-top: 20px; font-size: 15px; }
+  .topics a:hover { color: var(--accent); }
+  @media (max-width: 640px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
+</style>

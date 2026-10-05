@@ -1,0 +1,70 @@
+---
+import '../styles/global.css';
+
+interface Props { title?: string; description?: string; type?: 'website' | 'article'; }
+const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website' } = Astro.props;
+const siteName = 'Xinran';
+const fullTitle = title ? `${title} · ${siteName}` : siteName;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const path = Astro.url.pathname;
+const nav = [
+  { href: '/blog/', label: '博客' },
+  { href: '/notes/', label: '知识库' },
+  { href: '/markets/', label: '看板' },
+  { href: '/about/', label: '关于' },
+];
+const here = (href: string) => path.startsWith(href);
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="alternate" type="application/rss+xml" title={siteName} href="/rss.xml" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content={type} />
+    <meta property="og:url" content={canonical} />
+    <script is:inline>
+      try { var t = localStorage.getItem('theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
+  </head>
+  <body>
+    <div class="site">
+      <div class="wrap">
+        <header class="top">
+          <a class="brand" href="/">Xinran</a>
+          <nav aria-label="主导航">
+            {nav.map((n) => <a href={n.href} aria-current={here(n.href) ? 'page' : undefined}>{n.label}</a>)}
+          </nav>
+        </header>
+      </div>
+      <main class="wrap"><slot /></main>
+      <div class="wrap">
+        <footer class="site-footer">
+          <span>© {new Date().getFullYear()} Xinran</span>
+          <span class="links">
+            <a href="/rss.xml">RSS</a>
+            <button class="theme-btn" id="theme-btn" type="button">切换明暗</button>
+          </span>
+        </footer>
+      </div>
+    </div>
+    <script is:inline>
+      document.getElementById('theme-btn').addEventListener('click', function () {
+        var root = document.documentElement, cur = root.getAttribute('data-theme');
+        var dark = cur ? cur === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var next = dark ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+---
+---
+<canvas id="field" aria-hidden="true"></canvas>
+<script is:inline>
+(function () {
+  var cv = document.getElementById('field');
+  if (!cv) return;
+  var hero = cv.parentElement;
+  var ctx = cv.getContext('2d');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var GAP = 26, RADIUS = 130, PUSH = 46;
+  var W = 0, H = 0, dpr = 1, dots = [];
+  var mouse = { x: -9999, y: -9999, active: false };
+  var col = { dot: '#17181A', a: 0.16, accent: '#2A6BE0' };
+
+  function readColors() {
+    var s = getComputedStyle(document.documentElement);
+    col.dot = s.getPropertyValue('--dot').trim() || col.dot;
+    col.a = parseFloat(s.getPropertyValue('--dot-a')) || col.a;
+    col.accent = s.getPropertyValue('--accent').trim() || col.accent;
+  }
+  function build() {
+    var r = hero.getBoundingClientRect();
+    W = r.width; H = r.height;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    dots = [];
+    var cols = Math.floor(W / GAP), rows = Math.floor(H / GAP);
+    var ox = (W - (cols - 1) * GAP) / 2, oy = (H - (rows - 1) * GAP) / 2;
+    for (var j = 0; j < rows; j++) for (var i = 0; i < cols; i++) {
+      var x = ox + i * GAP, y = oy + j * GAP;
+      dots.push({ hx: x, hy: y, x: x, y: y, vx: 0, vy: 0 });
+    }
+    if (reduce) draw();
+  }
+  function step(t) {
+    var R2 = RADIUS * RADIUS;
+    for (var k = 0; k < dots.length; k++) {
+      var d = dots[k];
+      if (mouse.active) {
+        var dx = d.x - mouse.x, dy = d.y - mouse.y, q = dx * dx + dy * dy;
+        if (q < R2 && q > 0.01) {
+          var dist = Math.sqrt(q), f = 1 - dist / RADIUS;
+          f = f * f * PUSH * 0.06;
+          d.vx += dx / dist * f; d.vy += dy / dist * f;
+        }
+      }
+      var wob = Math.sin(t * 0.0006 + d.hx * 0.013 + d.hy * 0.017) * 0.35;
+      d.vx += (d.hx - d.x) * 0.045; d.vy += (d.hy + wob - d.y) * 0.045;
+      d.vx *= 0.84; d.vy *= 0.84;
+      d.x += d.vx; d.y += d.vy;
+    }
+  }
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (var k = 0; k < dots.length; k++) {
+      var d = dots[k];
+      var off = Math.hypot(d.x - d.hx, d.y - d.hy);
+      var near = 0;
+      if (mouse.active) near = Math.max(0, 1 - Math.hypot(d.x - mouse.x, d.y - mouse.y) / (RADIUS * 1.2));
+      var rad = 1.15 + near * 1.6;
+      ctx.globalAlpha = col.a + near * 0.4;
+      ctx.fillStyle = col.dot;
+      ctx.beginPath(); ctx.arc(d.x, d.y, rad, 0, 6.2832); ctx.fill();
+      if (off > 1.5) {
+        ctx.globalAlpha = Math.min(0.85, off / 40);
+        ctx.fillStyle = col.accent;
+        ctx.beginPath(); ctx.arc(d.x, d.y, rad, 0, 6.2832); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  var running = false, visible = true;
+  function loop(t) {
+    if (!visible) { running = false; return; }
+    step(t); draw(); requestAnimationFrame(loop);
+  }
+  function start() { if (!running && !reduce) { running = true; requestAnimationFrame(loop); } }
+  function setMouse(e) {
+    var r = hero.getBoundingClientRect();
+    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+    mouse.active = mouse.y > -RADIUS && mouse.y < r.height + RADIUS;
+  }
+  window.addEventListener('pointermove', setMouse);
+  window.addEventListener('pointerdown', setMouse);
+  document.addEventListener('mouseleave', function () { mouse.active = false; });
+  window.addEventListener('resize', build);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (es) { visible = es[0].isIntersecting; if (visible) start(); }).observe(hero);
+  }
+  function recolor() { readColors(); if (reduce) draw(); }
+  new MutationObserver(recolor).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
+  readColors(); build(); start();
+})();
+</script>
