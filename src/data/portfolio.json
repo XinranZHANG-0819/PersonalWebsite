@@ -171,7 +171,7 @@
       "id": "usdcny",
       "asset": "美元兑人民币",
       "weight": 0,
-      "metric": "汇率（境外资产折算人民币）",
+      "metric": "",
       "reading": "",
       "gauge": null,
       "chart": {

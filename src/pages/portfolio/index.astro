@@ -44,7 +44,7 @@ for (const x of P.signals as any[]) {
 }
 const groups = [
   { title: '', cards: (P.signals as any[]).filter((x) => !x.fx) },
-  { title: '汇率', note: '境外资产折算成人民币用的汇率', cards: (P.signals as any[]).filter((x) => x.fx) },
+  { title: '汇率', note: '', cards: (P.signals as any[]).filter((x) => x.fx) },
 ];
 // 24 个月动量：每个点对比两年前最近一个点的涨幅（%）
 const momentum = (pts: [string, number][]) => {
@@ -70,13 +70,11 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   bands: x.chart.bands ?? null,
 }]));
 ---
-<Base wide title="投资看板" description="按资产组合配置研究（Q3）搭建的跟踪看板：信号、资产状态、大盘走势和记录。">
-  <h1 class="page-title">投资看板</h1>
-  <p class="page-lead">依据《{P.report.title}》{P.report.version}，跟踪各资产的观测指标和大盘走势。</p>
+<Base wide title="资产罗盘" description="各类资产的走势、观测指标和当前读数。">
+  <h1 class="page-title">资产罗盘</h1>
 
   <!-- 2. 买卖信号 -->
-  <section class="block" aria-labelledby="s2">
-    <div class="head"><h2 id="s2">买卖信号与大盘走势</h2><a href="/markets/">全部指标 →</a></div>
+  <section class="block" aria-label="资产走势与观测指标" style="padding-top: 36px">
     <div class="bar2">
       <div class="ranges" role="group" aria-label="时间范围">
         <button type="button" data-range="30">1 月</button>
@@ -101,7 +99,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
           {heads[s.id] && (
             <div class="hd">
               <span class="hv mono">{heads[s.id].value}</span>
-              <span class={`hc mono ${heads[s.id].dir}`}>{arrow(heads[s.id].dir)} {heads[s.id].text}</span>
+              <span class={`hc mono ${heads[s.id].dir}`}>{heads[s.id].dir === 'flat' ? '' : `${arrow(heads[s.id].dir)} `}{heads[s.id].text}</span>
             </div>
           )}
           {s.chart && (
@@ -110,8 +108,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
             </div>
           )}
           {!s.chart && <p class="nodata">暂无免费数据源，待接入</p>}
-          <div class="bottom">
-          <div class="metric">{s.metric}</div>
+          <div class="bottom" hidden={!(s.metric || s.stateText || s.reading || s.readIndicator || s.showLive || s.gauge)}>
+          {s.metric && <div class="metric">{s.metric}</div>}
           <div class="rd">
             <div class="reading mono">{s.live ? (s.showLive && live(s.live) ? `${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : '') : s.readIndicator ? (indLast(s.readIndicator) != null ? `${indLast(s.readIndicator)!.toFixed(2)}%` : '') : s.reading}</div>
             {s.stateText && <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>}
@@ -168,7 +166,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
     ))}
   </section>
 
-  <p class="fine disclaimer">个人记录，不构成投资建议。报告里的结论基于历史回测，存在样本内挑选的成分，详见报告第七章“局限”。</p>
+  <p class="fine disclaimer">个人记录，不构成投资建议。</p>
   <script type="application/json" id="pf-data" set:html={JSON.stringify({ mk, charts })} />
 </Base>
 
@@ -250,8 +248,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
     const out = card.querySelector<HTMLElement>('[data-ret]');
     if (!out) return;
     const up = last > first, flat = last === first;
-    const arrow = up ? '▲' : flat ? '–' : '▼';
-    const val = kind === 'yield' ? `${arrow} ${Math.abs((last - first) * 100).toFixed(1)} bp` : `${arrow} ${Math.abs(((last - first) / first) * 100).toFixed(2)}%`;
+    const arrow = up ? '▲ ' : flat ? '' : '▼ ';
+    const val = kind === 'yield' ? `${arrow}${Math.abs((last - first) * 100).toFixed(1)} bp` : `${arrow}${Math.abs(((last - first) / first) * 100).toFixed(2)}%`;
     out.textContent = '';
     const lab = document.createElement('span'); lab.textContent = LABELS[days] || ''; lab.style.cssText = 'color:var(--ink-3);font-family:var(--sans);margin-right:6px';
     const num = document.createElement('span'); num.textContent = val;
