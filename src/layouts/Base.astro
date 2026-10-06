@@ -1,8 +1,9 @@
 ---
 import '../styles/global.css';
 
-interface Props { title?: string; description?: string; type?: 'website' | 'article'; }
-const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website' } = Astro.props;
+interface Props { title?: string; description?: string; type?: 'website' | 'article'; wide?: boolean; }
+const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website', wide = false } = Astro.props;
+const wrapCls = wide ? 'wrap wide' : 'wrap';
 const siteName = 'Xinran';
 const fullTitle = title ? `${title} · ${siteName}` : siteName;
 const canonical = new URL(Astro.url.pathname, Astro.site);
@@ -38,7 +39,7 @@ const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' 
   </head>
   <body>
     <div class="site">
-      <div class="wrap">
+      <div class={wrapCls}>
         <header class="top">
           <a class="brand" href="/">Xinran</a>
           <nav aria-label="主导航">
@@ -46,8 +47,8 @@ const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' 
           </nav>
         </header>
       </div>
-      <main class="wrap"><slot /></main>
-      <div class="wrap">
+      <main class={wrapCls}><slot /></main>
+      <div class={wrapCls}>
         <footer class="site-footer">
           <span>© {new Date().getFullYear()} Xinran</span>
           <span class="links">

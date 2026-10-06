@@ -9,6 +9,7 @@ export interface Panel {
   color: string;
   height: number;
   area?: boolean;
+  caption?: boolean;
   domain?: [number, number];
   refs?: { v: number; label: string }[];
 }
@@ -49,13 +50,13 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number) {
     const vals = pts.map((q) => q[1]);
     let lo = p.domain ? p.domain[0] : Math.min(...vals), hi = p.domain ? p.domain[1] : Math.max(...vals);
     if (!p.domain) { const pv = (hi - lo) * 0.08 || 1; lo -= pv; hi += pv; }
-    const TOP = 18;
+    const TOP = p.caption === false ? 8 : 18;
     const y = (v: number) => yOff + TOP + (1 - (v - lo) / (hi - lo)) * (p.height - TOP - PAD);
     tops.push(yOff);
     const g = el('g', {});
     // 面板标题
     const cap = el('text', { x: '0', y: String(yOff + 11), fill: 'var(--ink-3)', 'font-size': '11' });
-    cap.textContent = p.label; g.appendChild(cap);
+    if (p.caption !== false) { cap.textContent = p.label; g.appendChild(cap); }
     // 参考线
     (p.refs ?? []).forEach((r) => {
       g.appendChild(el('line', { x1: '0', x2: String(W), y1: String(y(r.v)), y2: String(y(r.v)), stroke: 'var(--line)', 'stroke-width': '1' }));
