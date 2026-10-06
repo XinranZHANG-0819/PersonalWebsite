@@ -71,7 +71,13 @@
       "reading": "年度复核",
       "gauge": null,
       "state": "plan",
-      "stateText": "不择时"
+      "stateText": "不择时",
+      "chart": {
+        "main": "bond161119",
+        "source": "indicators",
+        "name": "中债新综指 161119",
+        "decimals": 4
+      }
     },
     {
       "id": "us-bond",
@@ -113,7 +119,7 @@
         "main": "usdcny"
       },
       "live": "usdcny",
-      "wide": true
+      "fx": true
     }
   ],
   "btcWindow": {

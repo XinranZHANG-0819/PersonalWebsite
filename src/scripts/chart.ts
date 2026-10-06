@@ -1,4 +1,5 @@
-// 上下叠放、共用时间轴和十字线的折线图。每个面板有自己的纵轴，不做双轴叠画。
+// 上下叠放、共用时间轴和十字线的折线图，左侧带纵坐标。
+// 每个面板有自己的纵轴，不做双轴叠画。
 export type Pt = [string, number];
 export interface Panel {
   label: string;
@@ -11,12 +12,25 @@ export interface Panel {
   area?: boolean;
   caption?: boolean;
   domain?: [number, number];
-  refs?: { v: number; label: string }[];
+  ticks?: number[];
+  refs?: number[];
 }
+export interface Stats { first: number; last: number; firstDate: string; lastDate: string; }
+
 const NS = 'http://www.w3.org/2000/svg';
 const tm = (d: string) => new Date(d + 'T00:00:00Z').getTime();
 const fmt = (v: number, d: number) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const el = (n: string, a: Record<string, string>) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+function niceTicks(lo: number, hi: number, n = 3): { ticks: number[]; decimals: number } {
+  const raw = (hi - lo) / n;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / pow;
+  const step = (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * pow;
+  const ticks: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) ticks.push(Math.round(v / step) * step);
+  return { ticks, decimals: Math.max(0, -Math.floor(Math.log10(step) + 1e-9)) };
+}
 
 function nearest(pts: Pt[], t: number): number {
   let lo = 0, hi = pts.length - 1;
@@ -24,74 +38,89 @@ function nearest(pts: Pt[], t: number): number {
   return Math.abs(tm(pts[lo][0]) - t) <= Math.abs(tm(pts[hi][0]) - t) ? lo : hi;
 }
 
-export function mountChart(box: HTMLElement, panels: Panel[], days: number) {
+/** 画图，并返回第一个面板在所选区间内的起止值（用来算区间收益率）。 */
+export function mountChart(box: HTMLElement, panels: Panel[], days: number): Stats | null {
   box.textContent = '';
   const main = panels[0];
-  if (!main || main.points.length < 2) return;
-  const W = Math.max(box.clientWidth, 160);
+  if (!main || main.points.length < 2) return null;
+  const W = Math.max(box.clientWidth, 200);
   const tEnd = tm(main.points[main.points.length - 1][0]);
   const tStart = tEnd - days * 86400000;
-  const x = (t: number) => ((t - tStart) / (tEnd - tStart)) * W;
 
   const sliced = panels.map((p) => {
     const s = p.points.filter((q) => tm(q[0]) >= tStart);
     return s.length >= 2 ? s : p.points.slice(-2);
   });
 
+  // 每个面板先算纵轴刻度，再按最宽的刻度标签定左边距
+  const scales = panels.map((p, i) => {
+    const vals = sliced[i].map((q) => q[1]);
+    let lo = p.domain ? p.domain[0] : Math.min(...vals), hi = p.domain ? p.domain[1] : Math.max(...vals);
+    if (!p.domain) { const pv = (hi - lo) * 0.1 || 1; lo -= pv; hi += pv; }
+    let ticks = p.ticks, dec = p.decimals;
+    if (!ticks) { const nt = niceTicks(lo, hi, 3); ticks = nt.ticks; dec = Math.min(p.decimals, nt.decimals); }
+    else dec = 0;
+    const label = (v: number) => `${p.prefix ?? ''}${fmt(v, dec)}${p.suffix ?? ''}`;
+    return { lo, hi, ticks, label };
+  });
+  const widest = Math.max(...scales.flatMap((s) => s.ticks.map((t) => s.label(t).length)));
+  const L = Math.round(widest * 6.4 + 12);
+  const R = 6;
+  const x = (t: number) => L + ((t - tStart) / (tEnd - tStart)) * (W - L - R);
+
   box.style.position = 'relative';
-  const GAP = 10, PAD = 8;
+  const GAP = 12, BOT = 6;
   const dots: SVGCircleElement[] = [];
-  const tops: number[] = [];
   let yOff = 0;
   const svg = el('svg', { width: String(W), height: '0', viewBox: `0 0 ${W} 0`, role: 'img' });
-  svg.style.display = 'block'; svg.style.touchAction = 'pan-y';
+  svg.style.display = 'block'; svg.style.touchAction = 'pan-y'; svg.style.overflow = 'visible';
   panels.forEach((p, i) => {
     const pts = sliced[i];
-    const vals = pts.map((q) => q[1]);
-    let lo = p.domain ? p.domain[0] : Math.min(...vals), hi = p.domain ? p.domain[1] : Math.max(...vals);
-    if (!p.domain) { const pv = (hi - lo) * 0.08 || 1; lo -= pv; hi += pv; }
-    const TOP = p.caption === false ? 8 : 18;
-    const y = (v: number) => yOff + TOP + (1 - (v - lo) / (hi - lo)) * (p.height - TOP - PAD);
-    tops.push(yOff);
+    const sc = scales[i];
+    const TOP = p.caption === false ? 8 : 20;
+    const y = (v: number) => yOff + TOP + (1 - (v - sc.lo) / (sc.hi - sc.lo)) * (p.height - TOP - BOT);
     const g = el('g', {});
-    // 面板标题
-    const cap = el('text', { x: '0', y: String(yOff + 11), fill: 'var(--ink-3)', 'font-size': '11' });
-    if (p.caption !== false) { cap.textContent = p.label; g.appendChild(cap); }
-    // 参考线
-    (p.refs ?? []).forEach((r) => {
-      g.appendChild(el('line', { x1: '0', x2: String(W), y1: String(y(r.v)), y2: String(y(r.v)), stroke: 'var(--line)', 'stroke-width': '1' }));
-      const t = el('text', { x: String(W), y: String(y(r.v) - 3), 'text-anchor': 'end', fill: 'var(--ink-3)', 'font-size': '10.5' });
-      t.textContent = r.label; g.appendChild(t);
+    if (p.caption !== false) {
+      const cap = el('text', { x: String(L), y: String(yOff + 11), fill: 'var(--ink-3)', 'font-size': '11' });
+      cap.textContent = p.label; g.appendChild(cap);
+    }
+    // 水平参考线 + 纵坐标刻度
+    sc.ticks.forEach((tv) => {
+      const isRef = (p.refs ?? []).includes(tv);
+      g.appendChild(el('line', { x1: String(L), x2: String(W - R), y1: String(y(tv)), y2: String(y(tv)), stroke: isRef ? 'var(--ink-3)' : 'var(--line)', 'stroke-opacity': isRef ? '0.55' : '1', 'stroke-width': '1' }));
+      const t = el('text', { x: String(L - 8), y: String(y(tv) + 3.5), 'text-anchor': 'end', fill: 'var(--ink-3)', 'font-size': '10.5', 'font-family': 'var(--mono)' });
+      t.textContent = sc.label(tv); g.appendChild(t);
     });
     const d = pts.map((q, k) => `${k ? 'L' : 'M'}${x(tm(q[0])).toFixed(1)} ${y(q[1]).toFixed(1)}`).join(' ');
-    if (p.area) g.appendChild(el('path', { d: `${d} L${x(tm(pts[pts.length - 1][0])).toFixed(1)} ${yOff + p.height} L${x(tm(pts[0][0])).toFixed(1)} ${yOff + p.height} Z`, fill: p.color, opacity: '0.08' }));
+    if (p.area) g.appendChild(el('path', { d: `${d} L${x(tm(pts[pts.length - 1][0])).toFixed(1)} ${yOff + p.height - BOT} L${x(tm(pts[0][0])).toFixed(1)} ${yOff + p.height - BOT} Z`, fill: p.color, opacity: '0.08' }));
     g.appendChild(el('path', { d, fill: 'none', stroke: p.color, 'stroke-width': '2', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
     const last = pts[pts.length - 1];
     g.appendChild(el('circle', { cx: String(x(tm(last[0]))), cy: String(y(last[1])), r: '5', fill: 'var(--bg)' }));
     g.appendChild(el('circle', { cx: String(x(tm(last[0]))), cy: String(y(last[1])), r: '3.5', fill: p.color }));
     svg.appendChild(g);
     const dot = el('circle', { r: '4', fill: p.color, stroke: 'var(--bg)', 'stroke-width': '2', visibility: 'hidden' }) as SVGCircleElement;
-    dots.push(dot);
     (dot as any)._y = y;
+    dots.push(dot);
     yOff += p.height + GAP;
   });
   const H = yOff - GAP;
   svg.setAttribute('height', String(H)); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('aria-label', `${panels.map((p) => p.label).join('、')}走势图`);
   const cross = el('line', { y1: '0', y2: String(H), stroke: 'var(--ink-3)', 'stroke-width': '1', visibility: 'hidden' });
-  svg.appendChild(cross); dots.forEach((d) => svg.appendChild(d));
+  svg.appendChild(cross); dots.forEach((dd) => svg.appendChild(dd));
   box.appendChild(svg);
 
   const tip = document.createElement('div');
-  tip.style.cssText = 'position:absolute;top:0;pointer-events:none;visibility:hidden;font:12px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 9px;white-space:nowrap;color:var(--ink);line-height:1.6;z-index:2';
+  tip.style.cssText = 'position:absolute;pointer-events:none;visibility:hidden;font:12px var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 9px;white-space:nowrap;color:var(--ink);line-height:1.6;z-index:2';
   box.appendChild(tip);
 
   function show(clientX: number) {
     const r = svg.getBoundingClientRect();
-    const t = tStart + Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * (tEnd - tStart);
+    const frac = Math.max(0, Math.min(1, (clientX - r.left - L) / (r.width - L - R)));
+    const t = tStart + frac * (tEnd - tStart);
     let px = 0; const rows: string[] = []; let date = '';
     panels.forEach((p, i) => {
-      const pts = sliced[i]; const k = nearest(pts, t); const q = pts[k];
+      const pts = sliced[i]; const q = pts[nearest(pts, t)];
       const cx = x(tm(q[0])); if (i === 0) { px = cx; date = q[0]; }
       dots[i].setAttribute('cx', String(cx)); dots[i].setAttribute('cy', String((dots[i] as any)._y(q[1]))); dots[i].setAttribute('visibility', 'visible');
       rows.push(`${p.label}  ${p.prefix ?? ''}${fmt(q[1], p.decimals)}${p.suffix ?? ''}`);
@@ -99,14 +128,16 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number) {
     cross.setAttribute('x1', String(px)); cross.setAttribute('x2', String(px)); cross.setAttribute('visibility', 'visible');
     tip.textContent = '';
     const h = document.createElement('div'); h.style.color = 'var(--ink-3)'; h.textContent = date; tip.appendChild(h);
-    rows.forEach((s) => { const d = document.createElement('div'); d.textContent = s; tip.appendChild(d); });
+    rows.forEach((s) => { const dv = document.createElement('div'); dv.textContent = s; tip.appendChild(dv); });
     tip.style.visibility = 'visible';
     const tw = tip.offsetWidth;
-    tip.style.left = Math.max(0, Math.min(W - tw, px - tw / 2)) + 'px';
+    tip.style.left = Math.max(L, Math.min(W - tw, px - tw / 2)) + 'px';
     tip.style.top = (H + 6) + 'px';
   }
-  function hide() { cross.setAttribute('visibility', 'hidden'); dots.forEach((d) => d.setAttribute('visibility', 'hidden')); tip.style.visibility = 'hidden'; }
+  function hide() { cross.setAttribute('visibility', 'hidden'); dots.forEach((dd) => dd.setAttribute('visibility', 'hidden')); tip.style.visibility = 'hidden'; }
   svg.addEventListener('pointermove', (e) => show((e as PointerEvent).clientX));
   svg.addEventListener('pointerleave', hide);
-  box.style.paddingBottom = '0px';
+
+  const ms = sliced[0];
+  return { first: ms[0][1], last: ms[ms.length - 1][1], firstDate: ms[0][0], lastDate: ms[ms.length - 1][0] };
 }

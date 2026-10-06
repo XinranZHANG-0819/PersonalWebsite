@@ -17,10 +17,17 @@ const all = quotes();
 let indicators: Record<string, { points: [string, number][] }> = {};
 try { indicators = (await import('../../data/indicators.json')).default.series as any; } catch {}
 const live = (id?: string) => (id ? all.find((q) => q.id === id) : undefined);
-const needed = new Set<string>();
-P.signals.forEach((x: any) => { if (x.chart) { needed.add(x.chart.main); } });
 const mk: Record<string, any> = {};
-for (const id of needed) { const q = live(id); if (q) mk[id] = { name: q.name, decimals: q.decimals, prefix: q.prefix, suffix: q.suffix, points: q.points }; }
+for (const x of P.signals as any[]) {
+  if (!x.chart) continue;
+  const id = x.chart.main; const q = live(id);
+  if (q) mk[id] = { name: q.name, decimals: q.decimals, prefix: q.prefix, suffix: q.suffix, kind: q.kind, points: q.points };
+  else if (x.chart.source === 'indicators' && indicators[id]) mk[id] = { name: x.chart.name, decimals: x.chart.decimals ?? 2, prefix: '', suffix: '', kind: 'nav', points: indicators[id].points };
+}
+const groups = [
+  { title: '', cards: (P.signals as any[]).filter((x) => !x.fx) },
+  { title: '汇率', note: '境外资产折算成人民币用的汇率', cards: (P.signals as any[]).filter((x) => x.fx) },
+];
 const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: any) => [x.id, {
   main: x.chart.main, indicator: x.chart.indicator ?? null,
   ind: x.chart.indicator ? indicators[x.chart.indicator]?.points ?? null : null,
@@ -42,11 +49,15 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
       </div>
       <span class="fine" style="margin:0">{isDemo ? '示例数据' : '行情每天自动更新'} · 读数日期 {P.report.readingsAsOf}</span>
     </div>
+    {groups.map((g) => (
+    <div class="grp">
+      {g.title && <div class="head sm"><h2>{g.title}</h2><span>{g.note}</span></div>}
     <div class="signals">
-      {P.signals.map((sig) => { const s: any = sig; return (
-        <article class={`sig ${(sig as any).wide ? 'wide' : ''}`} data-id={sig.id}>
+      {g.cards.map((sig) => { const s: any = sig; return (
+        <article class="sig" data-id={sig.id}>
           <header>
             <span class="asset">{s.asset}{s.chart && mk[s.chart.main] && mk[s.chart.main].name !== s.asset && <span class="sub">{mk[s.chart.main].name}</span>}</span>
+            <span class="ret mono" data-ret></span>
           </header>
           {s.chart && (
             <div class="chart" data-chart>
@@ -108,6 +119,8 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
         </article>
       ); })}
     </div>
+    </div>
+    ))}
   </section>
 
   <p class="fine disclaimer">个人记录，不构成投资建议。报告里的结论基于历史回测，存在样本内挑选的成分，详见报告第七章“局限”。</p>
@@ -122,7 +135,11 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
 
   .signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
   .sig { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 24px; }
-  .sig header { display: flex; align-items: baseline; margin-bottom: 4px; }
+  .sig header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .ret { font-size: 13px; white-space: nowrap; }
+  .ret .lab { color: var(--ink-3); font-family: var(--sans); margin-right: 6px; }
+  .grp + .grp { margin-top: 48px; }
+  .head.sm { margin-top: 0; }
   .asset { font-size: 17px; font-weight: 600; }
   .asset .sub { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-left: 10px; }
   .rd { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
@@ -143,7 +160,6 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
   .ranges button.on { color: var(--ink); border-color: var(--line); background: color-mix(in srgb, var(--ink) 5%, transparent); }
   .chart { position: relative; margin: 12px 0 14px; min-height: 40px; }
   .nodata { margin: 12px 0 6px; font-size: 13px; color: var(--ink-3); }
-  .sig.wide { grid-column: 1 / -1; }
   .gauge { margin-top: 10px; }
   .track { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: visible; }
   .zone { position: absolute; top: 0; bottom: 0; }
@@ -167,8 +183,6 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
   @media (max-width: 720px) {
     .signals { grid-template-columns: minmax(0, 1fr); }
     .sig { padding: 20px; }
-    .sig.wide { display: flex; }
-    .sig.wide > .chart { margin: 12px 0 14px; }
   }
 </style>
 
@@ -178,7 +192,20 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
   const raw = JSON.parse(document.getElementById('pf-data')!.textContent || '{}');
   const mk = raw.mk as Record<string, any>;
   const charts = raw.charts as Record<string, { main: string; indicator: string | null; ind: [string, number][] | null }>;
+  const LABELS: Record<number, string> = { 30: '近 1 月', 182: '近 6 月', 365: '近 1 年', 1095: '近 3 年' };
   let days = 365;
+  function setReturn(card: HTMLElement, kind: string, first: number, last: number) {
+    const out = card.querySelector<HTMLElement>('[data-ret]');
+    if (!out) return;
+    const up = last > first, flat = last === first;
+    const sign = up ? '+' : flat ? '' : '−';
+    const val = kind === 'yield' ? `${sign}${Math.abs((last - first) * 100).toFixed(0)} bp` : `${sign}${Math.abs(((last - first) / first) * 100).toFixed(1)}%`;
+    out.textContent = '';
+    const lab = document.createElement('span'); lab.textContent = LABELS[days] || ''; lab.style.cssText = 'color:var(--ink-3);font-family:var(--sans);margin-right:6px';
+    const num = document.createElement('span'); num.textContent = val;
+    num.style.color = flat ? 'var(--ink-3)' : up ? 'var(--up)' : 'var(--down)';
+    out.append(lab, num);
+  }
   function renderAll() {
     document.querySelectorAll<HTMLElement>('.sig').forEach((card) => {
       const id = card.dataset.id!;
@@ -186,14 +213,15 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
       const c = charts[id];
       if (!box || !c || !mk[c.main]) return;
       const m = mk[c.main];
-      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: 110, area: true, caption: false }];
-      if (c.ind) panels.push({ label: 'PB 分位', points: c.ind, decimals: 0, suffix: '%', color: 'var(--series2)', height: 76, domain: [0, 100], refs: [{ v: 30, label: '30' }, { v: 70, label: '70' }] });
+      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: 124, area: true, caption: false }];
+      if (c.ind) panels.push({ label: 'PB 分位', points: c.ind, decimals: 0, suffix: '%', color: 'var(--series2)', height: 92, domain: [0, 100], ticks: [0, 30, 70, 100], refs: [30, 70] });
       const note = box.querySelector('.nodata');
       box.textContent = '';
       if (note) box.appendChild(note);
       const holder = document.createElement('div');
       box.insertBefore(holder, box.firstChild);
-      mountChart(holder, panels, days);
+      const st = mountChart(holder, panels, days);
+      if (st) setReturn(card, m.kind, st.first, st.last);
     });
   }
   renderAll();

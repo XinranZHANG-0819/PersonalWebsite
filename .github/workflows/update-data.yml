@@ -16,11 +16,11 @@ jobs:
       - run: node scripts/fetch-data.mjs
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - name: 抓取 PB 分位（失败不影响其他数据）
+      - name: 抓取 PB 分位与国内债净值（失败不影响其他数据）
         continue-on-error: true
         run: |
           pip install akshare pandas
-          python scripts/fetch_pb.py
+          python scripts/fetch_cn.py
       - name: 提交有变化的数据
         run: |
           if [ -n "$(git status --porcelain src/data)" ]; then
