@@ -183,10 +183,10 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   .sig header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
   .hd { margin-top: 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 4px 14px; flex-wrap: wrap; }
   .hv { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
-  .hc { font-size: 13px; text-align: right; white-space: nowrap; }
+  .hc { font-size: 13px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .muted { color: var(--ink-3); font-family: var(--sans); }
   .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
-  .ret { font-size: 13px; white-space: nowrap; }
+  .ret { font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .ret .lab { color: var(--ink-3); font-family: var(--sans); margin-right: 6px; }
   .grp + .grp { margin-top: 48px; }
   .head.sm { margin-top: 0; }
@@ -251,7 +251,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
     if (!out) return;
     const up = last > first, flat = last === first;
     const arrow = up ? '▲' : flat ? '–' : '▼';
-    const val = kind === 'yield' ? `${arrow} ${Math.abs((last - first) * 100).toFixed(0)} bp` : `${arrow} ${Math.abs(((last - first) / first) * 100).toFixed(1)}%`;
+    const val = kind === 'yield' ? `${arrow} ${Math.abs((last - first) * 100).toFixed(1)} bp` : `${arrow} ${Math.abs(((last - first) / first) * 100).toFixed(2)}%`;
     out.textContent = '';
     const lab = document.createElement('span'); lab.textContent = LABELS[days] || ''; lab.style.cssText = 'color:var(--ink-3);font-family:var(--sans);margin-right:6px';
     const num = document.createElement('span'); num.textContent = val;
