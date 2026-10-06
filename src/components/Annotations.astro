@@ -1,0 +1,43 @@
+---
+// 文章批注：样式 + 脚本。只放在文章页。
+---
+<script>
+  import '../scripts/annotate';
+</script>
+<style is:global>
+  /* 被批注的文字：淡淡的蓝色高亮和下划线；选中“隐藏批注”后恢复原样 */
+  mark.ann { background: color-mix(in srgb, var(--accent) 18%, transparent); color: inherit; border-bottom: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 2px; cursor: pointer; }
+  mark.ann:hover { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+  .prose.ann-off mark.ann { background: none; border-bottom: 0; cursor: auto; }
+  .ann-bar { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-top: 28px; font-size: 13px; color: var(--ink-3); }
+  .ann-link { background: none; border: 0; padding: 0; font: inherit; color: var(--link); cursor: pointer; }
+  .ann-link:hover { text-decoration: underline; }
+  .ann-pop { position: fixed; z-index: 60; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--accent); background: var(--bg); color: var(--link); font: inherit; font-size: 13px; cursor: pointer; box-shadow: 0 0 18px -4px var(--accent); }
+  .ann-pop:hover { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
+  .ann-card { position: fixed; z-index: 70; max-height: min(70vh, 560px); overflow: auto; padding: 16px 18px 18px; border: 1px solid var(--card-line); border-radius: 14px; background: var(--bg); color: var(--ink); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6); }
+  .ann-card.sheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: 72vh; border-radius: 16px 16px 0 0; padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+  .ann-card-head { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+  .ann-x { width: 32px; height: 32px; margin: -6px -8px -6px 0; border: 0; background: none; color: var(--ink-2); font-size: 22px; line-height: 1; cursor: pointer; border-radius: 8px; }
+  .ann-x:hover { color: var(--ink); }
+  .ann-quote { margin: 10px 0 0; padding-left: 12px; border-left: 2px solid var(--accent); color: var(--ink-2); font-size: 13.5px; line-height: 1.7; }
+  .ann-list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+  .ann-note { font-size: 14px; line-height: 1.75; }
+  .ann-meta { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; color: var(--ink-3); }
+  .ann-meta b { color: var(--ink); font-weight: 600; }
+  .ann-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ann-reply { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 13.5px; }
+  .ann-reply b { font-size: 12px; color: var(--link); font-weight: 600; }
+  .ann-input { display: block; width: 100%; margin-top: 12px; padding: 9px 12px; border: 1px solid var(--card-line); border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.6; resize: vertical; }
+  .ann-input:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .ann-trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  .ann-ts { margin-top: 12px; min-height: 0; }
+  .ann-msg { margin: 8px 0 0; min-height: 1.4em; font-size: 13px; color: var(--ink-2); }
+  .ann-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+  .ann-btn { height: 36px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+  .ann-btn.ghost { background: none; color: var(--ink-2); border-color: var(--card-line); }
+  .ann-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .ann-orphans { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); }
+  .ann-orphans h2 { font-size: 16px; margin: 0; }
+  .ann-hint { margin: 6px 0 0; font-size: 13px; color: var(--ink-3); }
+  .ann-orphans .ann-note { margin-top: 8px; }
+</style>

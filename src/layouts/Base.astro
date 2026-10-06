@@ -8,8 +8,9 @@ interface Props {
   type?: 'website' | 'article';
   /** 内容宽度：read 文章 · list 列表（默认）· home 首页 · wide 资产看板 */
   size?: 'read' | 'list' | 'home' | 'wide';
+  noindex?: boolean;
 }
-const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website', size = 'list' } = Astro.props;
+const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website', size = 'list', noindex = false } = Astro.props;
 const siteName = 'Xinran';
 const fullTitle = title ? `${title} · ${siteName}` : siteName;
 const canonical = new URL(Astro.url.pathname, Astro.site);
@@ -30,6 +31,8 @@ const wrapCls = size === 'list' ? 'wrap' : `wrap ${size}`;
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <meta name="theme-color" content="#050816" />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <meta name="turnstile-sitekey" content={import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? ''} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate" type="application/rss+xml" title={siteName} href="/rss.xml" />

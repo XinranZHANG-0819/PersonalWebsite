@@ -1,0 +1,90 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="批注管理" size="wide" noindex>
+  <div slot="hero" class="page-hero"><div class="wrap wide"><h1 class="page-title">批注管理</h1><p class="page-lead">只有你登录之后才能用。可以回复、隐藏、删除读者的批注。</p></div></div>
+  <section class="block" style="padding-top: 28px">
+    <div class="bar">
+      <div class="filters" role="group" aria-label="筛选">
+        <button type="button" data-f="all" class="on">全部</button>
+        <button type="button" data-f="visible">显示中</button>
+        <button type="button" data-f="hidden">已隐藏</button>
+      </div>
+      <span id="count" class="count"></span>
+    </div>
+    <p id="state" class="state">加载中…</p>
+    <div id="list" class="list"></div>
+  </section>
+</Base>
+
+<style is:global>
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .filters { display: flex; gap: 4px; }
+  .filters button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .filters button.on { color: var(--ink); border-color: var(--card-line); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .count, .state { font-size: 13px; color: var(--ink-3); }
+  .list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+  .item { padding: 16px 18px; }
+  .item.hid { opacity: 0.6; }
+  .item .top2 { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-3); }
+  .item .top2 a { color: var(--link); }
+  .item blockquote { margin: 10px 0 0; padding-left: 12px; border-left: 2px solid var(--accent); color: var(--ink-2); font-size: 13.5px; }
+  .item .txt { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; }
+  .item .rep { margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 13.5px; white-space: pre-wrap; }
+  .item textarea { display: block; width: 100%; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--card-line); border-radius: 10px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); font: inherit; font-size: 14px; }
+  .item .acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .item .acts button { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--card-line); background: none; color: var(--ink-2); font: inherit; font-size: 13px; cursor: pointer; }
+  .item .acts button:hover { color: var(--ink); border-color: var(--accent); }
+  .item .acts .danger:hover { color: #FF6B72; border-color: #FF6B72; }
+</style>
+
+<script>
+  type A = { id: number; page: string; exact: string; body: string; nickname: string; status: string; reply: string | null; created_at: string };
+  let all: A[] = [];
+  let filter = 'all';
+  const list = document.getElementById('list')!;
+  const state = document.getElementById('state')!;
+  const count = document.getElementById('count')!;
+  const mk = (tag: string, cls?: string, text?: string) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+
+  async function api(method: string, url: string, body?: unknown) {
+    const r = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    if (!r.ok) throw new Error(String(r.status));
+    return r.json();
+  }
+  function render() {
+    list.textContent = '';
+    const rows = all.filter((a) => filter === 'all' || a.status === filter);
+    count.textContent = `${rows.length} 条`;
+    state.textContent = rows.length ? '' : '没有批注。';
+    for (const a of rows) {
+      const it = mk('div', 'item card' + (a.status === 'hidden' ? ' hid' : ''));
+      const top = mk('div', 'top2');
+      const left = mk('span'); left.append(mk('b', undefined, a.nickname || '匿名读者'), document.createTextNode(` · ${a.created_at}`));
+      const link = mk('a', undefined, a.page) as HTMLAnchorElement; link.href = a.page;
+      top.append(left, link);
+      it.append(top, mk('blockquote', undefined, a.exact), mk('p', 'txt', a.body));
+      if (a.reply) it.append(mk('div', 'rep', '作者回复：' + a.reply));
+      const ta = mk('textarea') as HTMLTextAreaElement; ta.rows = 2; ta.placeholder = a.reply ? '修改回复（清空并保存即删除回复）' : '写一条回复…'; ta.value = a.reply || ''; ta.maxLength = 1000;
+      const acts = mk('div', 'acts');
+      const bReply = mk('button', undefined, '保存回复') as HTMLButtonElement;
+      const bHide = mk('button', undefined, a.status === 'hidden' ? '重新显示' : '隐藏') as HTMLButtonElement;
+      const bDel = mk('button', 'danger', '删除') as HTMLButtonElement;
+      bReply.type = bHide.type = bDel.type = 'button';
+      bReply.onclick = async () => { const r = await api('PATCH', '/api/admin/annotations', { id: a.id, reply: ta.value }); Object.assign(a, r.annotation); render(); };
+      bHide.onclick = async () => { const r = await api('PATCH', '/api/admin/annotations', { id: a.id, status: a.status === 'hidden' ? 'visible' : 'hidden' }); Object.assign(a, r.annotation); render(); };
+      let armed = false;
+      bDel.onclick = async () => { if (!armed) { armed = true; bDel.textContent = '再点一次确认删除'; setTimeout(() => { armed = false; bDel.textContent = '删除'; }, 3000); return; } await api('DELETE', '/api/admin/annotations?id=' + a.id); all = all.filter((x) => x.id !== a.id); render(); };
+      acts.append(bReply, bHide, bDel);
+      it.append(ta, acts);
+      list.append(it);
+    }
+  }
+  document.querySelectorAll<HTMLButtonElement>('[data-f]').forEach((b) => b.addEventListener('click', () => {
+    filter = b.dataset.f!;
+    document.querySelectorAll('[data-f]').forEach((o) => o.classList.toggle('on', o === b));
+    render();
+  }));
+  api('GET', '/api/admin/annotations').then((j) => { all = j.annotations; render(); })
+    .catch((e) => { state.textContent = String(e.message) === '401' ? '需要登录：请通过 Cloudflare Access 的登录页进入（邮箱验证码）。' : '加载失败，请稍后再试。'; });
+</script>

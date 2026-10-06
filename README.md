@@ -24,3 +24,7 @@ npm run dev               # http://localhost:4321
 ## 部署（Cloudflare）
 
 构建命令 `npm run build`，输出目录 `dist`，Node 版本 22。
+
+## 批注
+
+文章页读者可以选中文字写批注，作者在 `/admin/` 管理。部署前需要在 Cloudflare 里配置数据库、验证码和登录保护，步骤见 [docs/批注功能部署说明.md](docs/批注功能部署说明.md)。

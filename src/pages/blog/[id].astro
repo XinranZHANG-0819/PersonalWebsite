@@ -1,6 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Base from '../../layouts/Base.astro';
+import Annotations from '../../components/Annotations.astro';
 
 export async function getStaticPaths() {
   const posts = await getCollection('blog', (p) => !p.data.draft);
@@ -19,5 +20,6 @@ const d = post.data.date.toISOString().slice(0, 10);
   <article>
     <div class="prose"><Content /></div>
   </article>
+  <Annotations />
   <p class="meta" style="margin-top: 56px"><a href="/blog/">← 返回文章</a></p>
 </Base>
