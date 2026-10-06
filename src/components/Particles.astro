@@ -1,17 +1,19 @@
 ---
+// 整屏粒子：一张固定在窗口里的画布，只在“内容区域以外”出现（两侧留白、页面顶部），
+// 带 data-solid 的内容区域里不放粒子，边缘 36px 渐隐，所以不会干扰阅读和选字。
+// 想退回“只在首页顶部”：去掉 Base.astro 里的 <Particles />，改回首页 hero 里放一张画布即可。
 ---
 <canvas id="field" aria-hidden="true"></canvas>
 <script is:inline>
 (function () {
   var cv = document.getElementById('field');
   if (!cv) return;
-  var hero = cv.parentElement;
   var ctx = cv.getContext('2d');
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var GAP = window.innerWidth < 640 ? 18 : 16, RADIUS = 120, PUSH = 46;
-  var W = 0, H = 0, dpr = 1, dots = [];
+  var MIN_GAP = 16, MAX_DOTS = 5200, RADIUS = 120, PUSH = 46, FADE = 36;
+  var W = 0, H = 0, dpr = 1, gap = MIN_GAP, dots = [], solids = [], els = [];
   var mouse = { x: -9999, y: -9999, active: false };
-  var col = { dot: '#17181A', a: 0.16, accent: '#2A6BE0' };
+  var col = { dot: '#8FB0FF', a: 0.26, accent: '#4D7CFF' };
 
   function readColors() {
     var s = getComputedStyle(document.documentElement);
@@ -20,78 +22,87 @@
     col.accent = s.getPropertyValue('--accent').trim() || col.accent;
   }
   function build() {
-    var r = hero.getBoundingClientRect();
-    W = r.width; H = r.height;
+    W = window.innerWidth; H = window.innerHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gap = Math.max(W < 640 ? 18 : MIN_GAP, Math.ceil(Math.sqrt((W * H) / MAX_DOTS)));
     dots = [];
-    var cols = Math.floor(W / GAP), rows = Math.floor(H / GAP);
-    var ox = (W - (cols - 1) * GAP) / 2, oy = (H - (rows - 1) * GAP) / 2;
+    var cols = Math.floor(W / gap) + 1, rows = Math.floor(H / gap) + 1;
+    var ox = (W - (cols - 1) * gap) / 2, oy = (H - (rows - 1) * gap) / 2;
     for (var j = 0; j < rows; j++) for (var i = 0; i < cols; i++) {
-      var x = ox + i * GAP, y = oy + j * GAP;
+      var x = ox + i * gap, y = oy + j * gap;
       dots.push({ hx: x, hy: y, x: x, y: y, vx: 0, vy: 0 });
     }
-    if (reduce) draw();
   }
-  function step(t) {
+  function measure() {
+    solids.length = 0;
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (r.width === 0 || r.bottom < -FADE || r.top > H + FADE) continue;
+      solids.push(r);
+    }
+  }
+  // 0 = 在内容区域里（不放粒子），1 = 在内容区域外；中间 36px 渐变
+  function visibility(x, y) {
+    var m = 1;
+    for (var i = 0; i < solids.length; i++) {
+      var r = solids[i];
+      var dx = Math.max(r.left - x, 0, x - r.right);
+      var dy = Math.max(r.top - y, 0, y - r.bottom);
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d < FADE) { var t = d / FADE; m = Math.min(m, t * t * (3 - 2 * t)); if (m <= 0) return 0; }
+    }
+    return m;
+  }
+  function frame(t, animate) {
+    measure();
+    ctx.clearRect(0, 0, W, H);
     var R2 = RADIUS * RADIUS;
     for (var k = 0; k < dots.length; k++) {
       var d = dots[k];
-      if (mouse.active) {
-        var dx = d.x - mouse.x, dy = d.y - mouse.y, q = dx * dx + dy * dy;
-        if (q < R2 && q > 0.01) {
-          var dist = Math.sqrt(q), f = 1 - dist / RADIUS;
-          f = f * f * PUSH * 0.06;
-          d.vx += dx / dist * f; d.vy += dy / dist * f;
+      var vis = visibility(d.hx, d.hy);
+      if (vis < 0.02) { d.x = d.hx; d.y = d.hy; d.vx = d.vy = 0; continue; }   // 在内容区域里：不画、不算
+      if (animate) {
+        if (mouse.active) {
+          var dx = d.x - mouse.x, dy = d.y - mouse.y, q = dx * dx + dy * dy;
+          if (q < R2 && q > 0.01) { var dist = Math.sqrt(q), f = 1 - dist / RADIUS; f = f * f * PUSH * 0.06; d.vx += dx / dist * f; d.vy += dy / dist * f; }
         }
+        var wob = Math.sin(t * 0.0006 + d.hx * 0.013 + d.hy * 0.017) * 0.35;
+        d.vx += (d.hx - d.x) * 0.045; d.vy += (d.hy + wob - d.y) * 0.045;
+        d.vx *= 0.84; d.vy *= 0.84; d.x += d.vx; d.y += d.vy;
       }
-      var wob = Math.sin(t * 0.0006 + d.hx * 0.013 + d.hy * 0.017) * 0.35;
-      d.vx += (d.hx - d.x) * 0.045; d.vy += (d.hy + wob - d.y) * 0.045;
-      d.vx *= 0.84; d.vy *= 0.84;
-      d.x += d.vx; d.y += d.vy;
-    }
-  }
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    for (var k = 0; k < dots.length; k++) {
-      var d = dots[k];
       var off = Math.hypot(d.x - d.hx, d.y - d.hy);
-      var near = 0;
-      if (mouse.active) near = Math.max(0, 1 - Math.hypot(d.x - mouse.x, d.y - mouse.y) / (RADIUS * 1.2));
+      var near = mouse.active ? Math.max(0, 1 - Math.hypot(d.x - mouse.x, d.y - mouse.y) / (RADIUS * 1.2)) : 0;
       var rad = 1.05 + near * 1.5;
-      ctx.globalAlpha = col.a * 0.85 + near * 0.4;
+      ctx.globalAlpha = (col.a * 0.9 + near * 0.4) * vis;
       ctx.fillStyle = col.dot;
       ctx.beginPath(); ctx.arc(d.x, d.y, rad, 0, 6.2832); ctx.fill();
       if (off > 1.5) {
-        ctx.globalAlpha = Math.min(0.85, off / 40);
+        ctx.globalAlpha = Math.min(0.85, off / 40) * vis;
         ctx.fillStyle = col.accent;
         ctx.beginPath(); ctx.arc(d.x, d.y, rad, 0, 6.2832); ctx.fill();
       }
     }
     ctx.globalAlpha = 1;
   }
-  var running = false, visible = true;
-  function loop(t) {
-    if (!visible) { running = false; return; }
-    step(t); draw(); requestAnimationFrame(loop);
-  }
+  var running = false;
+  function loop(t) { frame(t, true); requestAnimationFrame(loop); }
   function start() { if (!running && !reduce) { running = true; requestAnimationFrame(loop); } }
-  function setMouse(e) {
-    var r = hero.getBoundingClientRect();
-    mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
-    mouse.active = mouse.y > -RADIUS && mouse.y < r.height + RADIUS;
+  function still() { frame(0, false); }
+
+  function init() {
+    els = Array.prototype.slice.call(document.querySelectorAll('[data-solid]'));
+    readColors(); build();
+    if (reduce) still(); else start();
   }
-  window.addEventListener('pointermove', setMouse);
-  window.addEventListener('pointerdown', setMouse);
+  window.addEventListener('pointermove', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; });
+  window.addEventListener('pointerdown', function (e) { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; });
   document.addEventListener('mouseleave', function () { mouse.active = false; });
-  window.addEventListener('resize', build);
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(function (es) { visible = es[0].isIntersecting; if (visible) start(); }).observe(hero);
-  }
-  function recolor() { readColors(); if (reduce) draw(); }
+  window.addEventListener('resize', function () { build(); if (reduce) still(); });
+  window.addEventListener('scroll', function () { if (reduce) still(); }, { passive: true });
+  function recolor() { readColors(); if (reduce) still(); }
   new MutationObserver(recolor).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
-  readColors(); build(); start();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>

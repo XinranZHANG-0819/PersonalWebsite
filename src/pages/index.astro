@@ -1,7 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
 import Base from '../layouts/Base.astro';
-import Particles from '../components/Particles.astro';
 import PostRow from '../components/PostRow.astro';
 import Sparkline from '../components/Sparkline.astro';
 import { quotes, arrow, fmt, updatedAt, isDemo } from '../lib-markets';
@@ -16,7 +15,6 @@ const stamp = updatedAt ? updatedAt.slice(0, 16).replace('T', ' ') + ' UTC' : ''
 ---
 <Base size="home">
   <div slot="hero" class="hero" id="hero">
-    <Particles />
     <div class="wrap home hero-inner">
       <h1>你好，我是 Xinran。</h1>
       <p>记录投资与阅读的思考，整理长期积累的知识，也追踪我关心的市场指标。</p>
