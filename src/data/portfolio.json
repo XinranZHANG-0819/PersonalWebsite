@@ -26,7 +26,26 @@
       "stateText": "半仓",
       "chart": {
         "main": "sh000300",
-        "indicator": "pb300"
+        "indicator": {
+          "id": "pb300",
+          "label": "PB 分位",
+          "decimals": 0,
+          "suffix": "%",
+          "domain": [
+            0,
+            100
+          ],
+          "ticks": [
+            0,
+            30,
+            70,
+            100
+          ],
+          "refs": [
+            30,
+            70
+          ]
+        }
       }
     },
     {
@@ -73,10 +92,16 @@
       "state": "plan",
       "stateText": "不择时",
       "chart": {
-        "main": "bond161119",
+        "main": "cbond",
         "source": "indicators",
-        "name": "中债新综指 161119",
-        "decimals": 4
+        "name": "中债新综合指数",
+        "decimals": 2,
+        "indicator": {
+          "id": "cn10y",
+          "label": "10 年国债收益率",
+          "decimals": 2,
+          "suffix": "%"
+        }
       }
     },
     {

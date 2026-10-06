@@ -1,7 +1,8 @@
 """抓取 A 股与国内债的补充数据，写入 src/data/indicators.json（Yahoo 里没有这些）。
 
 - pb300：沪深300 市净率的 10 年滚动分位（AkShare / 乐咕乐股）
-- bond161119：易方达中债新综指 161119 的累计净值（AkShare / 东方财富）
+- cn10y：中国国债 10 年期收益率（AkShare / 东方财富）
+- cbond：中债新综合指数（财富指数，AkShare / 中央结算公司）
 
 每个序列单独抓取，失败时保留它上一次的数据，不影响其他序列。
 """
@@ -38,8 +39,17 @@ def pb300():
     return to_points(pct, 1)
 
 
-def bond161119():
-    df = ak.fund_open_fund_info_em(symbol="161119", indicator="累计净值走势")
+def cn10y():
+    df = ak.bond_zh_us_rate(start_date="20220101")
+    s = pd.Series(df["中国国债收益率10年"].astype(float).values, index=pd.to_datetime(df["日期"])).sort_index().dropna()
+    if len(s) < 100:
+        raise RuntimeError(f"too few points: {len(s)}")
+    return to_points(s, 4)
+
+
+def cbond():
+    # 中债新综合指数（财富指数，含利息再投资，反映债券的总回报）
+    df = ak.bond_new_composite_index_cbond(indicator="财富", period="总值")
     s = pd.Series(df.iloc[:, 1].astype(float).values, index=pd.to_datetime(df.iloc[:, 0])).sort_index().dropna()
     if len(s) < 100:
         raise RuntimeError(f"too few points: {len(s)}")
@@ -47,7 +57,7 @@ def bond161119():
 
 
 failed = 0
-for key, fn in (("pb300", pb300), ("bond161119", bond161119)):
+for key, fn in (("pb300", pb300), ("cn10y", cn10y), ("cbond", cbond)):
     try:
         pts = fn()
         store["series"][key] = {"points": pts}

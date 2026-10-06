@@ -28,9 +28,10 @@ const groups = [
   { title: '', cards: (P.signals as any[]).filter((x) => !x.fx) },
   { title: '汇率', note: '境外资产折算成人民币用的汇率', cards: (P.signals as any[]).filter((x) => x.fx) },
 ];
-const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: any) => [x.id, {
-  main: x.chart.main, indicator: x.chart.indicator ?? null,
-  ind: x.chart.indicator ? indicators[x.chart.indicator]?.points ?? null : null,
+const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).map((x) => [x.id, {
+  main: x.chart.main,
+  spec: x.chart.indicator ?? null,
+  ind: x.chart.indicator ? indicators[x.chart.indicator.id]?.points ?? null : null,
 }]));
 ---
 <Base wide title="投资看板" description="按资产组合配置研究（Q3）搭建的跟踪看板：信号、资产状态、大盘走势和记录。">
@@ -191,7 +192,7 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
   import { mountChart } from '../../scripts/chart';
   const raw = JSON.parse(document.getElementById('pf-data')!.textContent || '{}');
   const mk = raw.mk as Record<string, any>;
-  const charts = raw.charts as Record<string, { main: string; indicator: string | null; ind: [string, number][] | null }>;
+  const charts = raw.charts as Record<string, { main: string; spec: any; ind: [string, number][] | null }>;
   const LABELS: Record<number, string> = { 30: '近 1 月', 182: '近 6 月', 365: '近 1 年', 1095: '近 3 年' };
   let days = 365;
   function setReturn(card: HTMLElement, kind: string, first: number, last: number) {
@@ -214,7 +215,7 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
       if (!box || !c || !mk[c.main]) return;
       const m = mk[c.main];
       const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: 124, area: true, caption: false }];
-      if (c.ind) panels.push({ label: 'PB 分位', points: c.ind, decimals: 0, suffix: '%', color: 'var(--series2)', height: 92, domain: [0, 100], ticks: [0, 30, 70, 100], refs: [30, 70] });
+      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 92, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
       const note = box.querySelector('.nodata');
       box.textContent = '';
       if (note) box.appendChild(note);
