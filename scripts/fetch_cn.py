@@ -27,9 +27,6 @@ def to_points(s: pd.Series, nd: int):
     return [[d.strftime("%Y-%m-%d"), round(float(v), nd)] for d, v in s.items()]
 
 
-WINDOW = 2430  # ≈ 10 年交易日
-
-
 def _parse_pb(df: pd.DataFrame) -> pd.Series:
     print("  columns:", list(df.columns), "rows:", len(df), "range:", df.iloc[0, 0], "→", df.iloc[-1, 0])
     date_col = "日期" if "日期" in df.columns else df.columns[0]
@@ -39,28 +36,14 @@ def _parse_pb(df: pd.DataFrame) -> pd.Series:
 
 
 def pb300():
-    errs = []
-    s = None
-    # 来源 1：乐咕乐股
-    try:
-        s = _parse_pb(ak.stock_index_pb_lg(symbol="沪深300"))
-        if len(s) < WINDOW + 60:
-            errs.append(f"stock_index_pb_lg history too short: {len(s)}")
-            s = None
-    except Exception as e:
-        errs.append(f"stock_index_pb_lg: {e}")
-    # 来源 2：韭圈儿（funddb），取成立以来的全部历史
-    if s is None:
-        try:
-            s = _parse_pb(ak.index_value_hist_funddb(symbol="沪深300", indicator="市净率", period="成立以来"))
-            if len(s) < WINDOW + 60:
-                errs.append(f"index_value_hist_funddb history too short: {len(s)}")
-                s = None
-        except Exception as e:
-            errs.append(f"index_value_hist_funddb: {e}")
-    if s is None:
-        raise RuntimeError("; ".join(errs))
-    pct = s.rolling(WINDOW, min_periods=WINDOW).apply(lambda w: (w <= w[-1]).mean() * 100, raw=True).dropna()
+    """沪深300 市净率的 10 年滚动分位。数据源可能是日度，也可能是月度，窗口按频率换算成 10 年。"""
+    s = _parse_pb(ak.stock_index_pb_lg(symbol="沪深300"))
+    gap = s.index.to_series().diff().dt.days.median()
+    window = 120 if gap > 15 else 2430   # 月度 120 个点，日度约 2430 个交易日
+    print(f"  median gap {gap} days → window {window} points")
+    if len(s) < window:
+        raise RuntimeError(f"history too short: {len(s)} < {window}")
+    pct = s.rolling(window, min_periods=window).apply(lambda w: (w <= w[-1]).mean() * 100, raw=True).dropna()
     return to_points(pct, 1)
 
 
@@ -80,6 +63,32 @@ def cbond():
         raise RuntimeError(f"too few points: {len(s)}")
     return to_points(s, 4)
 
+
+def patch_markets():
+    """沪深300、创业板指、上证指数：Yahoo 偶尔只返回很少的点，用新浪的日线覆盖，保证 A 股指数是完整的。"""
+    mpath = root / "src/data/markets.json"
+    m = json.loads(mpath.read_text(encoding="utf-8"))
+    changed = 0
+    for sid, sym in (("sh000300", "sh000300"), ("sz399006", "sz399006"), ("sh000001", "sh000001")):
+        try:
+            df = ak.stock_zh_index_daily(symbol=sym)
+            ser = pd.Series(df["close"].astype(float).values, index=pd.to_datetime(df["date"])).sort_index().dropna()
+            pts = to_points(ser, 4)
+            if len(pts) < 200:
+                raise RuntimeError(f"too few points: {len(pts)}")
+            m["series"][sid] = {"points": pts}
+            changed += 1
+            print(f"ok   {sid} via sina ({len(pts)} points, last {pts[-1]})")
+        except Exception as e:
+            print(f"FAIL {sid} via sina: {e}", file=sys.stderr)
+    if changed:
+        mpath.write_text(json.dumps(m, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
+try:
+    patch_markets()
+except Exception as e:
+    print(f"FAIL patch_markets: {e}", file=sys.stderr)
 
 failed = 0
 for key, fn in (("pb300", pb300), ("cn10y", cn10y), ("cbond", cbond)):

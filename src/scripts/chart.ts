@@ -47,8 +47,10 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
   const tEnd = tm(main.points[main.points.length - 1][0]);
   const tStart = tEnd - days * 86400000;
 
-  const sliced = panels.map((p) => {
-    const s = p.points.filter((q) => tm(q[0]) >= tStart);
+  const sliced = panels.map((p, i) => {
+    const idx = p.points.findIndex((q) => tm(q[0]) >= tStart);
+    // 主面板严格取窗口内的点；其他面板（可能是月度数据）多取窗口前的一个点，让线从左边缘起笔
+    const s = idx < 0 ? p.points.slice(-2) : p.points.slice(i === 0 ? idx : Math.max(0, idx - 1));
     return s.length >= 2 ? s : p.points.slice(-2);
   });
 
@@ -72,7 +74,11 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
   const GAP = 12, BOT = 6;
   const dots: SVGCircleElement[] = [];
   let yOff = 0;
+  const cid = 'cp' + Math.random().toString(36).slice(2, 8);
   const svg = el('svg', { width: String(W), height: '0', viewBox: `0 0 ${W} 0`, role: 'img' });
+  const defs = el('defs', {}); const cp = el('clipPath', { id: cid });
+  cp.appendChild(el('rect', { x: String(L), y: '-4', width: String(W - L), height: '4000' }));
+  defs.appendChild(cp); svg.appendChild(defs);
   svg.style.display = 'block'; svg.style.touchAction = 'pan-y'; svg.style.overflow = 'visible';
   panels.forEach((p, i) => {
     const pts = sliced[i];
@@ -91,9 +97,11 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
       const t = el('text', { x: String(L - 8), y: String(y(tv) + 3.5), 'text-anchor': 'end', fill: 'var(--ink-3)', 'font-size': '10.5', 'font-family': 'var(--mono)' });
       t.textContent = sc.label(tv); g.appendChild(t);
     });
+    const gc = el('g', { 'clip-path': `url(#${cid})` });
     const d = pts.map((q, k) => `${k ? 'L' : 'M'}${x(tm(q[0])).toFixed(1)} ${y(q[1]).toFixed(1)}`).join(' ');
-    if (p.area) g.appendChild(el('path', { d: `${d} L${x(tm(pts[pts.length - 1][0])).toFixed(1)} ${yOff + p.height - BOT} L${x(tm(pts[0][0])).toFixed(1)} ${yOff + p.height - BOT} Z`, fill: p.color, opacity: '0.08' }));
-    g.appendChild(el('path', { d, fill: 'none', stroke: p.color, 'stroke-width': '2', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    if (p.area) gc.appendChild(el('path', { d: `${d} L${x(tm(pts[pts.length - 1][0])).toFixed(1)} ${yOff + p.height - BOT} L${x(tm(pts[0][0])).toFixed(1)} ${yOff + p.height - BOT} Z`, fill: p.color, opacity: '0.08' }));
+    gc.appendChild(el('path', { d, fill: 'none', stroke: p.color, 'stroke-width': '2', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    g.appendChild(gc);
     const last = pts[pts.length - 1];
     g.appendChild(el('circle', { cx: String(x(tm(last[0]))), cy: String(y(last[1])), r: '5', fill: 'var(--bg)' }));
     g.appendChild(el('circle', { cx: String(x(tm(last[0]))), cy: String(y(last[1])), r: '3.5', fill: p.color }));
@@ -121,7 +129,7 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
     let px = 0; const rows: string[] = []; let date = '';
     panels.forEach((p, i) => {
       const pts = sliced[i]; const q = pts[nearest(pts, t)];
-      const cx = x(tm(q[0])); if (i === 0) { px = cx; date = q[0]; }
+      const cx = Math.max(L, x(tm(q[0]))); if (i === 0) { px = cx; date = q[0]; }
       dots[i].setAttribute('cx', String(cx)); dots[i].setAttribute('cy', String((dots[i] as any)._y(q[1]))); dots[i].setAttribute('visibility', 'visible');
       rows.push(`${p.label}  ${p.prefix ?? ''}${fmt(q[1], p.decimals)}${p.suffix ?? ''}`);
     });
