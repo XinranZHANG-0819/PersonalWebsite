@@ -96,6 +96,15 @@
       "decimals": 0,
       "kind": "price",
       "prefix": "$"
+    },
+    {
+      "id": "ief",
+      "category": "bond",
+      "name": "10 年期美债指数",
+      "symbol": "IEF",
+      "decimals": 2,
+      "kind": "price",
+      "adjusted": true
     }
   ]
 }

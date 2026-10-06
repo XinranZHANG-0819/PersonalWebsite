@@ -64,7 +64,16 @@
       "state": "buy",
       "stateText": "可以买",
       "chart": {
-        "main": "ndx"
+        "main": "ndx",
+        "indicator": {
+          "id": "excape",
+          "label": "超额 CAPE 收益率（估算）",
+          "decimals": 1,
+          "suffix": "%",
+          "refs": [
+            0
+          ]
+        }
       }
     },
     {
@@ -79,7 +88,18 @@
       "state": "wait",
       "stateText": "等待",
       "chart": {
-        "main": "btc"
+        "main": "btc",
+        "bands": {
+          "halvings": [
+            "2016-07-09",
+            "2020-05-11",
+            "2024-04-20",
+            "2028-04-01"
+          ],
+          "before": 12,
+          "after": 18,
+          "label": "减半窗口"
+        }
       }
     },
     {
@@ -114,9 +134,17 @@
       "state": "track",
       "stateText": "仅跟踪",
       "chart": {
-        "main": "us10y"
+        "main": "ief",
+        "indicator": {
+          "id": "us10y",
+          "source": "markets",
+          "label": "10 年美债收益率",
+          "decimals": 2,
+          "suffix": "%"
+        }
       },
-      "live": "us10y"
+      "live": "us10y",
+      "showLive": true
     },
     {
       "id": "gold",
@@ -128,7 +156,18 @@
       "state": "plan",
       "stateText": "按计划买",
       "chart": {
-        "main": "gold"
+        "main": "gold",
+        "indicator": {
+          "id": "mom24",
+          "derived": "mom24",
+          "from": "gold",
+          "label": "24 个月动量",
+          "decimals": 0,
+          "suffix": "%",
+          "refs": [
+            0
+          ]
+        }
       }
     },
     {

@@ -13,6 +13,9 @@ export interface Panel {
   caption?: boolean;
   /** 叠到上一个面板的同一张图里，使用右侧纵轴 */
   overlay?: boolean;
+  /** 在背景里画色带（比如比特币减半窗口），日期区间 */
+  bands?: [string, string][];
+  bandLabel?: string;
   domain?: [number, number];
   ticks?: number[];
   refs?: number[];
@@ -60,11 +63,11 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
   const scales = panels.map((p, i) => {
     const vals = sliced[i].map((q) => q[1]);
     let lo = p.domain ? p.domain[0] : Math.min(...vals), hi = p.domain ? p.domain[1] : Math.max(...vals);
-    if (!p.domain) { const pv = (hi - lo) * 0.1 || 1; lo -= pv; hi += pv; }
+    if (!p.domain) { const mn = lo; const pv = (hi - lo) * 0.1 || 1; lo -= pv; hi += pv; if (mn >= 0 && lo < 0) lo = 0; }
     let ticks = p.ticks, dec = p.decimals;
     if (!ticks) { const nt = niceTicks(lo, hi, 3); ticks = nt.ticks; dec = Math.min(p.decimals, nt.decimals); }
     else dec = 0;
-    const label = (v: number) => `${p.prefix ?? ''}${fmt(v, dec)}${p.suffix ?? ''}`;
+    const label = (v: number) => `${p.prefix ?? ''}${fmt(Math.abs(v) < 1e-9 ? 0 : v, dec)}${p.suffix ?? ''}`;
     return { lo, hi, ticks, label };
   });
   const widthOf = (idxs: number[]) => Math.max(0, ...idxs.flatMap((i) => scales[i].ticks.map((t) => scales[i].label(t).length)));
@@ -85,27 +88,37 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
   svg.style.display = 'block'; svg.style.touchAction = 'pan-y'; svg.style.overflow = 'visible';
 
   let yOff = 0, bandTop = 0, bandH = 0, bandHasOverlay = false;
+  const legends: { top: number; items: { label: string; color: string; swatch: 'dot' | 'box' }[] }[] = [];
   panels.forEach((p, i) => {
     const pts = sliced[i];
     const sc = scales[i];
     const over = !!p.overlay && i > 0;
-    if (!over) { bandTop = yOff; bandH = p.height; bandHasOverlay = panels[i + 1]?.overlay === true; }
+    if (!over) {
+      bandTop = yOff; bandH = p.height; bandHasOverlay = panels[i + 1]?.overlay === true;
+      if (bandHasOverlay || p.bands) {
+        const items: { label: string; color: string; swatch: 'dot' | 'box' }[] = [{ label: p.label, color: p.color, swatch: 'dot' }];
+        if (bandHasOverlay) items.push({ label: panels[i + 1].label, color: panels[i + 1].color, swatch: 'dot' });
+        if (p.bands) items.push({ label: p.bandLabel ?? '区间', color: 'var(--series2)', swatch: 'box' });
+        legends.push({ top: bandTop, items });
+      }
+    }
     const top0 = bandTop;
     const H0 = bandH;
-    const TOP = over || bandHasOverlay || p.caption !== false ? 22 : 8;
+    const TOP = !over && !bandHasOverlay && p.caption !== false ? 22 : 8;
     const y = (v: number) => top0 + TOP + (1 - (v - sc.lo) / (sc.hi - sc.lo)) * (H0 - TOP - BOT);
     const g = el('g', {});
 
-    // 图例 / 标题
-    if (!over && bandHasOverlay) {
-      let lx = L;
-      [panels[i], panels[i + 1]].forEach((q) => {
-        g.appendChild(el('circle', { cx: String(lx + 4), cy: String(top0 + 8), r: '3.5', fill: q.color }));
-        const t = el('text', { x: String(lx + 12), y: String(top0 + 11.5), fill: 'var(--ink-2)', 'font-size': '11.5' });
-        t.textContent = q.label; g.appendChild(t);
-        lx += 12 + q.label.length * 12 + 18;
+    // 背景色带（比如比特币减半窗口）
+    if (!over && p.bands) {
+      p.bands.forEach(([b0, b1]) => {
+        const t0 = Math.max(tm(b0), tStart), t1 = Math.min(tm(b1), tEnd);
+        if (t1 <= t0) return;
+        g.appendChild(el('rect', { x: String(x(t0)), y: String(top0 + TOP), width: String(Math.max(1, x(t1) - x(t0))), height: String(H0 - TOP - BOT), fill: 'var(--series2)', opacity: '0.14' }));
       });
-    } else if (!over && p.caption !== false) {
+    }
+
+    // 标题（仅上下叠放时）
+    if (!over && !bandHasOverlay && p.caption !== false) {
       const cap = el('text', { x: String(L), y: String(top0 + 11), fill: 'var(--ink-3)', 'font-size': '11' });
       cap.textContent = p.label; g.appendChild(cap);
     }
@@ -137,6 +150,22 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
     dots.push(dot);
     if (!over) yOff += p.height + GAP;
   });
+  // 图例：放在图里左上角，带底色，避免和曲线混在一起
+  legends.forEach((lg) => {
+    const g = el('g', {});
+    const widths = lg.items.map((it) => 14 + it.label.length * 11.5 + 14);
+    const total = widths.reduce((a, b) => a + b, 0) + 6;
+    g.appendChild(el('rect', { x: String(L + 6), y: String(lg.top + 4), width: String(total), height: '20', rx: '5', fill: 'var(--bg)', 'fill-opacity': '0.88' }));
+    let lx = L + 12;
+    lg.items.forEach((it, k) => {
+      if (it.swatch === 'dot') g.appendChild(el('circle', { cx: String(lx + 4), cy: String(lg.top + 14), r: '3.5', fill: it.color }));
+      else g.appendChild(el('rect', { x: String(lx), y: String(lg.top + 9.5), width: '9', height: '9', fill: it.color, 'fill-opacity': '0.35' }));
+      const t = el('text', { x: String(lx + 14), y: String(lg.top + 17.5), fill: 'var(--ink-2)', 'font-size': '11.5' });
+      t.textContent = it.label; g.appendChild(t);
+      lx += widths[k];
+    });
+    svg.appendChild(g);
+  });
   const H = yOff - GAP;
   svg.setAttribute('height', String(H)); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('aria-label', `${panels.map((p) => p.label).join('、')}走势图`);
@@ -157,7 +186,8 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
       const pts = sliced[i]; const q = pts[nearest(pts, t)];
       const cx = Math.max(L, x(tm(q[0]))); if (i === 0) { px = cx; date = q[0]; }
       dots[i].setAttribute('cx', String(cx)); dots[i].setAttribute('cy', String((dots[i] as any)._y(q[1]))); dots[i].setAttribute('visibility', 'visible');
-      rows.push(`${p.label}  ${p.prefix ?? ''}${fmt(q[1], p.decimals)}${p.suffix ?? ''}${p.overlay ? `  (${q[0].slice(0, 7)})` : ''}`);
+      const far = i > 0 && Math.abs(tm(q[0]) - tm(date)) > 6 * 86400000;
+      rows.push(`${p.label}  ${p.prefix ?? ''}${fmt(q[1], p.decimals)}${p.suffix ?? ''}${far ? `  (${q[0].slice(0, 7)})` : ''}`);
     });
     cross.setAttribute('x1', String(px)); cross.setAttribute('x2', String(px)); cross.setAttribute('visibility', 'visible');
     tip.textContent = '';

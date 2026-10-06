@@ -3,6 +3,7 @@
 - pb300：沪深300 市净率的 10 年滚动分位（AkShare / 乐咕乐股）
 - cn10y：中国国债 10 年期收益率（AkShare / 东方财富）
 - cbond：中债新综合指数（财富指数，AkShare / 中央结算公司）
+- excape：超额 CAPE 收益率估算（Shiller 公开数据）
 
 每个序列单独抓取，失败时保留它上一次的数据，不影响其他序列。
 """
@@ -11,7 +12,8 @@ import pandas as pd
 
 root = pathlib.Path(__file__).resolve().parent.parent
 out = root / "src/data/indicators.json"
-KEEP = pd.Timedelta(days=3 * 366 + 10)
+KEEP = pd.Timedelta(days=10 * 366 + 10)
+DAILY_KEEP = pd.Timedelta(days=3 * 366)
 
 try:
     store = json.loads(out.read_text(encoding="utf-8"))
@@ -23,7 +25,16 @@ import akshare as ak
 
 
 def to_points(s: pd.Series, nd: int):
+    """保留近 10 年；日度数据里，近 3 年留日线，更早的按周取最后一个点。月度数据原样保留。"""
     s = s[s.index >= s.index[-1] - KEEP]
+    gap = s.index.to_series().diff().dt.days.median()
+    if gap is not None and gap < 15:
+        cut = s.index[-1] - DAILY_KEEP
+        old, new = s[s.index < cut], s[s.index >= cut]
+        if len(old):
+            wk = old.index.to_series().dt.to_period("W")
+            old = old[~wk.duplicated(keep="last")]   # 每周只留最后一个交易日，日期保持真实
+        s = pd.concat([old, new])
     return [[d.strftime("%Y-%m-%d"), round(float(v), nd)] for d, v in s.items()]
 
 
@@ -48,7 +59,7 @@ def pb300():
 
 
 def cn10y():
-    df = ak.bond_zh_us_rate(start_date="20220101")
+    df = ak.bond_zh_us_rate(start_date="20150101")
     s = pd.Series(df["中国国债收益率10年"].astype(float).values, index=pd.to_datetime(df["日期"])).sort_index().dropna()
     if len(s) < 100:
         raise RuntimeError(f"too few points: {len(s)}")
@@ -62,6 +73,38 @@ def cbond():
     if len(s) < 100:
         raise RuntimeError(f"too few points: {len(s)}")
     return to_points(s, 4)
+
+
+def excape():
+    """超额 CAPE 收益率（估算）= 1/CAPE − （10 年美债收益率 − 过去 10 年平均通胀）。
+    数据：Shiller 公开数据表（标普 500 的 CAPE、CPI、10 年国债利率），月度。"""
+    import io, urllib.request
+    url = "http://www.econ.yale.edu/~shiller/data/ie_data.xls"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    raw = urllib.request.urlopen(req, timeout=60).read()
+    df = pd.read_excel(io.BytesIO(raw), sheet_name="Data", skiprows=7)
+    print("  shiller columns:", list(df.columns)[:14], "rows:", len(df))
+    date_col = df.columns[0]
+    cape_col = next(c for c in df.columns if str(c).strip().upper().startswith("CAPE"))
+    cpi_col = next(c for c in df.columns if str(c).strip().upper() == "CPI")
+    rate_col = next(c for c in df.columns if "Rate" in str(c) and "GS10" in str(c)) if any("GS10" in str(c) for c in df.columns) else df.columns[6]
+    d = df[[date_col, cape_col, cpi_col, rate_col]].copy()
+    d.columns = ["date", "cape", "cpi", "rate"]
+    d = d[pd.to_numeric(d["date"], errors="coerce").notna()]
+    d["date"] = d["date"].astype(float)
+    # 日期格式 YYYY.MM（10 月写作 YYYY.1）
+    yr = d["date"].astype(int)
+    mo = ((d["date"] - yr) * 100).round().astype(int).clip(1, 12)
+    d.index = pd.to_datetime(dict(year=yr, month=mo, day=1)) + pd.offsets.MonthEnd(0)
+    for c in ("cape", "cpi", "rate"):
+        d[c] = pd.to_numeric(d[c], errors="coerce")
+    d = d.dropna(subset=["cape", "cpi", "rate"])
+    infl = ((d["cpi"] / d["cpi"].shift(120)) ** (1 / 10) - 1) * 100
+    ex = (100 / d["cape"]) - (d["rate"] - infl)
+    ex = ex.dropna()
+    if len(ex) < 60:
+        raise RuntimeError(f"too few points: {len(ex)}")
+    return to_points(ex, 2)
 
 
 def patch_markets():
@@ -91,7 +134,7 @@ except Exception as e:
     print(f"FAIL patch_markets: {e}", file=sys.stderr)
 
 failed = 0
-for key, fn in (("pb300", pb300), ("cn10y", cn10y), ("cbond", cbond)):
+for key, fn in (("pb300", pb300), ("cn10y", cn10y), ("cbond", cbond), ("excape", excape)):
     try:
         pts = fn()
         store["series"][key] = {"points": pts}
@@ -100,7 +143,7 @@ for key, fn in (("pb300", pb300), ("cn10y", cn10y), ("cbond", cbond)):
         failed += 1
         print(f"FAIL {key}: {e}", file=sys.stderr)
 
-store["series"] = {k: v for k, v in store["series"].items() if k in ("pb300", "cn10y", "cbond")}
+store["series"] = {k: v for k, v in store["series"].items() if k in ("pb300", "cn10y", "cbond", "excape")}
 if store["series"]:
     store["updatedAt"] = pd.Timestamp.now(tz="UTC").isoformat()
 out.write_text(json.dumps(store, ensure_ascii=False) + "\n", encoding="utf-8")

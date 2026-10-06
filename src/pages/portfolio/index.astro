@@ -44,10 +44,28 @@ const groups = [
   { title: '', cards: (P.signals as any[]).filter((x) => !x.fx) },
   { title: '汇率', note: '境外资产折算成人民币用的汇率', cards: (P.signals as any[]).filter((x) => x.fx) },
 ];
+// 24 个月动量：每个点对比两年前最近一个点的涨幅（%）
+const momentum = (pts: [string, number][]) => {
+  const out: [string, number][] = [];
+  let j = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const t = new Date(pts[i][0] + 'T00:00:00Z').getTime() - 730 * 86400000;
+    while (j + 1 < i && new Date(pts[j + 1][0] + 'T00:00:00Z').getTime() <= t) j++;
+    if (new Date(pts[j][0] + 'T00:00:00Z').getTime() <= t) out.push([pts[i][0], Math.round(((pts[i][1] / pts[j][1]) - 1) * 1000) / 10]);
+  }
+  return out;
+};
+const indicatorPoints = (spec: any) => {
+  if (!spec) return null;
+  if (spec.source === 'markets') return live(spec.id)?.points ?? null;
+  if (spec.derived === 'mom24') { const q = live(spec.from); return q ? momentum(q.points) : null; }
+  return indicators[spec.id]?.points ?? null;
+};
 const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).map((x) => [x.id, {
   main: x.chart.main,
   spec: x.chart.indicator ?? null,
-  ind: x.chart.indicator ? indicators[x.chart.indicator.id]?.points ?? null : null,
+  ind: indicatorPoints(x.chart.indicator),
+  bands: x.chart.bands ?? null,
 }]));
 ---
 <Base wide title="投资看板" description="按资产组合配置研究（Q3）搭建的跟踪看板：信号、资产状态、大盘走势和记录。">
@@ -63,6 +81,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
         <button type="button" data-range="182">6 月</button>
         <button type="button" data-range="365" class="on">1 年</button>
         <button type="button" data-range="1095">3 年</button>
+        <button type="button" data-range="1825">5 年</button>
+        <button type="button" data-range="3650">10 年</button>
       </div>
       <span class="fine" style="margin:0">{isDemo ? '示例数据' : '行情每天自动更新'} · 读数日期 {P.report.readingsAsOf}</span>
     </div>
@@ -78,8 +98,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
           </header>
           {heads[s.id] && (
             <div class="hd">
-              <div class="hv mono">{heads[s.id].value}</div>
-              <div class={`hc mono ${heads[s.id].dir}`}>{arrow(heads[s.id].dir)} {heads[s.id].text} <span class="muted">{heads[s.id].label}</span></div>
+              <span class="hv mono">{heads[s.id].value}</span>
+              <span class={`hc mono ${heads[s.id].dir}`}>{arrow(heads[s.id].dir)} {heads[s.id].text} <span class="muted">{heads[s.id].label}</span></span>
             </div>
           )}
           {s.chart && (
@@ -90,7 +110,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
           {!s.chart && <p class="nodata">暂无免费数据源，待接入</p>}
           <div class="metric">{s.metric}</div>
           <div class="rd">
-            <div class="reading mono">{s.live ? '' : s.reading}</div>
+            <div class="reading mono">{s.live ? (s.showLive && live(s.live) ? `${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : '') : s.reading}</div>
             <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>
           </div>
 
@@ -108,7 +128,6 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
                 <span style={`left:${s.gauge.marks[1]}%`}>{s.gauge.marks[1]}</span>
                 <span style="left:100%">100</span>
               </div>
-              <div class="zones"><span style={`width:${s.gauge.marks[0]}%`}>满仓</span><span style={`width:${s.gauge.marks[1] - s.gauge.marks[0]}%`}>半仓</span><span style={`width:${100 - s.gauge.marks[1]}%`}>空仓</span></div>
             </div>
           )}
           {s.gauge?.type === 'zero' && (
@@ -159,9 +178,9 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   .signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
   .sig { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 24px; }
   .sig header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-  .hd { margin-top: 10px; }
+  .hd { margin-top: 10px; display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
   .hv { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
-  .hc { font-size: 13px; margin-top: 4px; }
+  .hc { font-size: 13px; }
   .muted { color: var(--ink-3); font-family: var(--sans); }
   .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
   .ret { font-size: 13px; white-space: nowrap; }
@@ -219,8 +238,9 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   import { mountChart } from '../../scripts/chart';
   const raw = JSON.parse(document.getElementById('pf-data')!.textContent || '{}');
   const mk = raw.mk as Record<string, any>;
-  const charts = raw.charts as Record<string, { main: string; spec: any; ind: [string, number][] | null }>;
-  const LABELS: Record<number, string> = { 30: '近 1 月', 182: '近 6 月', 365: '近 1 年', 1095: '近 3 年' };
+  const charts = raw.charts as Record<string, { main: string; spec: any; ind: [string, number][] | null; bands: any }>;
+  const LABELS: Record<number, string> = { 30: '近 1 月', 182: '近 6 月', 365: '近 1 年', 1095: '近 3 年', 1825: '近 5 年', 3650: '近 10 年' };
+  const addMonths = (iso: string, n: number) => { const d = new Date(iso + 'T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); };
   let days = 365;
   function setReturn(card: HTMLElement, kind: string, first: number, last: number) {
     const out = card.querySelector<HTMLElement>('[data-ret]');
@@ -241,8 +261,9 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
       const c = charts[id];
       if (!box || !c || !mk[c.main]) return;
       const m = mk[c.main];
-      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: c.ind && c.spec ? 190 : 124, area: true, caption: false }];
-      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 190, overlay: true, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
+      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: c.ind && c.spec ? 200 : 140, area: true, caption: false }];
+      if (c.bands) { panels[0].bands = c.bands.halvings.map((h: string) => [addMonths(h, -c.bands.before), addMonths(h, c.bands.after)]); panels[0].bandLabel = c.bands.label; }
+      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 200, overlay: true, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
       const note = box.querySelector('.nodata');
       box.textContent = '';
       if (note) box.appendChild(note);
