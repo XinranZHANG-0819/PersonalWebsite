@@ -214,8 +214,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
       const c = charts[id];
       if (!box || !c || !mk[c.main]) return;
       const m = mk[c.main];
-      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: 124, area: true, caption: false }];
-      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 92, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
+      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: c.ind && c.spec ? 190 : 124, area: true, caption: false }];
+      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 190, overlay: true, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
       const note = box.querySelector('.nodata');
       box.textContent = '';
       if (note) box.appendChild(note);
