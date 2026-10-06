@@ -108,10 +108,11 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
             </div>
           )}
           {!s.chart && <p class="nodata">暂无免费数据源，待接入</p>}
+          <div class="bottom">
           <div class="metric">{s.metric}</div>
           <div class="rd">
             <div class="reading mono">{s.live ? (s.showLive && live(s.live) ? `${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : '') : s.reading}</div>
-            <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>
+            {s.stateText && <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>}
           </div>
 
           {s.gauge?.type === 'range' && (
@@ -154,10 +155,10 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
               <div class="ticks mono">
                 {[2026, 2027, 2028, 2029, 2030].map((y) => <span style={`left:${pct((y - 2026) * 12)}%`}>{y}</span>)}
               </div>
-              <div class="zones tl-note"><span>窗口 {P.btcWindow.start} ~ {P.btcWindow.end}，竖线为减半（约 {P.btcWindow.halving}）</span></div>
             </div>
           )}
 
+          </div>
         </article>
       ); })}
     </div>
@@ -178,9 +179,9 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   .signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
   .sig { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 24px; }
   .sig header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
-  .hd { margin-top: 10px; display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+  .hd { margin-top: 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 4px 14px; flex-wrap: wrap; }
   .hv { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
-  .hc { font-size: 13px; }
+  .hc { font-size: 13px; text-align: right; white-space: nowrap; }
   .muted { color: var(--ink-3); font-family: var(--sans); }
   .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
   .ret { font-size: 13px; white-space: nowrap; }
@@ -205,7 +206,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   .ranges button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
   .ranges button:hover { color: var(--ink); }
   .ranges button.on { color: var(--ink); border-color: var(--line); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-  .chart { position: relative; margin: 12px 0 14px; min-height: 40px; }
+  .chart { position: relative; margin: 12px 0 14px; min-height: 210px; }
+  .bottom { margin-top: auto; }
   .nodata { margin: 12px 0 6px; font-size: 13px; color: var(--ink-3); }
   .gauge { margin-top: 10px; }
   .track { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: visible; }
@@ -261,15 +263,16 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
       const c = charts[id];
       if (!box || !c || !mk[c.main]) return;
       const m = mk[c.main];
-      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: c.ind && c.spec ? 200 : 140, area: true, caption: false }];
+      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: 210, area: true, caption: false }];
       if (c.bands) { panels[0].bands = c.bands.halvings.map((h: string) => [addMonths(h, -c.bands.before), addMonths(h, c.bands.after)]); panels[0].bandLabel = c.bands.label; }
-      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 200, overlay: true, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
+      if (c.ind && c.spec) panels.push({ label: c.spec.label, points: c.ind, decimals: c.spec.decimals, suffix: c.spec.suffix, color: 'var(--series2)', height: 210, overlay: true, domain: c.spec.domain, ticks: c.spec.ticks, refs: c.spec.refs });
       const note = box.querySelector('.nodata');
       box.textContent = '';
       if (note) box.appendChild(note);
       const holder = document.createElement('div');
       box.insertBefore(holder, box.firstChild);
-      const st = mountChart(holder, panels, days);
+      const narrow = box.clientWidth < 420;
+      const st = mountChart(holder, panels, days, { L: narrow ? 54 : 66, R: narrow ? 40 : 50 });
       if (st) setReturn(card, m.kind, st.first, st.last);
     });
   }

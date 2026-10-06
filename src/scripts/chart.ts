@@ -44,7 +44,7 @@ function nearest(pts: Pt[], t: number): number {
 }
 
 /** 画图，并返回第一个面板在所选区间内的起止值（用来算区间收益率）。 */
-export function mountChart(box: HTMLElement, panels: Panel[], days: number): Stats | null {
+export function mountChart(box: HTMLElement, panels: Panel[], days: number, opts: { L?: number; R?: number } = {}): Stats | null {
   box.textContent = '';
   const main = panels[0];
   if (!main || main.points.length < 2) return null;
@@ -73,8 +73,8 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
   const widthOf = (idxs: number[]) => Math.max(0, ...idxs.flatMap((i) => scales[i].ticks.map((t) => scales[i].label(t).length)));
   const leftIdx = panels.map((_, i) => i).filter((i) => !panels[i].overlay);
   const rightIdx = panels.map((_, i) => i).filter((i) => panels[i].overlay);
-  const L = Math.round(widthOf(leftIdx) * 6.4 + 12);
-  const R = rightIdx.length ? Math.round(widthOf(rightIdx) * 6.4 + 12) : 6;
+  const L = opts.L ?? Math.round(widthOf(leftIdx) * 6.4 + 12);
+  const R = opts.R ?? (rightIdx.length ? Math.round(widthOf(rightIdx) * 6.4 + 12) : 6);
   const x = (t: number) => L + ((t - tStart) / (tEnd - tStart)) * (W - L - R);
 
   box.style.position = 'relative';
@@ -155,8 +155,9 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number): Sta
     const g = el('g', {});
     const widths = lg.items.map((it) => 14 + it.label.length * 11.5 + 14);
     const total = widths.reduce((a, b) => a + b, 0) + 6;
-    g.appendChild(el('rect', { x: String(L + 6), y: String(lg.top + 4), width: String(total), height: '20', rx: '5', fill: 'var(--bg)', 'fill-opacity': '0.88' }));
-    let lx = L + 12;
+    const x0 = L + Math.max(6, ((W - L - R) - total) / 2);   // 水平居中于绘图区
+    g.appendChild(el('rect', { x: String(x0), y: String(lg.top + 4), width: String(total), height: '20', rx: '5', fill: 'var(--bg)', 'fill-opacity': '0.88' }));
+    let lx = x0 + 6;
     lg.items.forEach((it, k) => {
       if (it.swatch === 'dot') g.appendChild(el('circle', { cx: String(lx + 4), cy: String(lg.top + 14), r: '3.5', fill: it.color }));
       else g.appendChild(el('rect', { x: String(lx), y: String(lg.top + 9.5), width: '9', height: '9', fill: it.color, 'fill-opacity': '0.35' }));

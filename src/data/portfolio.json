@@ -62,12 +62,12 @@
         "unit": "%"
       },
       "state": "buy",
-      "stateText": "可以买",
+      "stateText": "购入",
       "chart": {
         "main": "ndx",
         "indicator": {
           "id": "excape",
-          "label": "超额 CAPE 收益率（估算）",
+          "label": "超额 CAPE 收益率",
           "decimals": 1,
           "suffix": "%",
           "refs": [
@@ -80,7 +80,7 @@
       "id": "btc",
       "asset": "比特币",
       "weight": 5,
-      "metric": "是否在减半窗口（前 12 个月至后 18 个月）",
+      "metric": "减半窗口",
       "reading": "窗口外",
       "gauge": {
         "type": "window"
@@ -109,8 +109,6 @@
       "metric": "纯债基金经理、近 3 年回撤、综合分、杠杆；161119 跟踪偏差",
       "reading": "年度复核",
       "gauge": null,
-      "state": "plan",
-      "stateText": "不择时",
       "chart": {
         "main": "cbond",
         "source": "indicators",
@@ -131,8 +129,6 @@
       "metric": "10 年美债收益率（超额 CAPE 的输入项）",
       "reading": "",
       "gauge": null,
-      "state": "track",
-      "stateText": "仅跟踪",
       "chart": {
         "main": "ief",
         "indicator": {
@@ -153,8 +149,8 @@
       "metric": "24 个月动量（只参考）",
       "reading": "+52.8%",
       "gauge": null,
-      "state": "plan",
-      "stateText": "按计划买",
+      "state": "buy",
+      "stateText": "购入",
       "chart": {
         "main": "gold",
         "indicator": {
@@ -177,8 +173,6 @@
       "metric": "汇率（境外资产折算人民币）",
       "reading": "",
       "gauge": null,
-      "state": "track",
-      "stateText": "仅跟踪",
       "chart": {
         "main": "usdcny"
       },
