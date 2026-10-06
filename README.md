@@ -12,8 +12,7 @@ npm run dev               # http://localhost:4321
 
 ## 写作
 
-- 博客：`src/content/blog/*.md`
-- 知识库：`src/content/notes/*.md`
+- 文章：`src/content/blog/*.md`（可用标签区分主题；改过的文章加 `updated` 日期）
 - 字段说明见 `src/content.config.ts`；`draft: true` 的内容不会发布
 
 ## 行情看板

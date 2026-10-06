@@ -8,19 +8,10 @@ const blog = defineCollection({
     description: z.string().optional(),
     date: z.coerce.date(),
     tags: z.array(z.string()).default([]),
+    /** 文章后来改过的话，写上更新日期，会显示“更新于” */
+    updated: z.coerce.date().optional(),
     draft: z.boolean().default(false),
   }),
 });
 
-const notes = defineCollection({
-  loader: glob({ pattern: '**/*.md', base: './src/content/notes' }),
-  schema: z.object({
-    title: z.string(),
-    description: z.string().optional(),
-    topic: z.string(),
-    updated: z.coerce.date(),
-    draft: z.boolean().default(false),
-  }),
-});
-
-export const collections = { blog, notes };
+export const collections = { blog };

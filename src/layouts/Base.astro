@@ -16,7 +16,6 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 const path = Astro.url.pathname;
 const nav = [
   { href: '/blog/', label: '文章' },
-  { href: '/notes/', label: '笔记' },
   { href: '/portfolio/', label: '理财' },
   { href: '/about/', label: '关于' },
 ];
@@ -39,16 +38,11 @@ const wrapCls = size === 'list' ? 'wrap' : `wrap ${size}`;
     <meta property="og:type" content={type} />
     <meta property="og:url" content={canonical} />
     <script is:inline>
-      // 白天 / 夜间：优先用你选过的，没有选过就跟随系统
+      // 默认夜间；点右上角的按钮切到白天，选择会被记住
       (function () {
-        var root = document.documentElement, t = null;
+        var t = null;
         try { t = localStorage.getItem('theme'); } catch (e) {}
-        var mq = window.matchMedia('(prefers-color-scheme: light)');
-        root.setAttribute('data-theme', t === 'light' || t === 'dark' ? t : (mq.matches ? 'light' : 'dark'));
-        mq.addEventListener && mq.addEventListener('change', function (e) {
-          var saved = null; try { saved = localStorage.getItem('theme'); } catch (x) {}
-          if (!saved) root.setAttribute('data-theme', e.matches ? 'light' : 'dark');
-        });
+        document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

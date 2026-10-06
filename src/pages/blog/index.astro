@@ -7,8 +7,7 @@ const byYear = new Map<number, typeof posts>();
 for (const p of posts) { const y = p.data.date.getFullYear(); byYear.set(y, [...(byYear.get(y) ?? []), p]); }
 ---
 <Base title="文章" description="按时间排列的文章。">
-  <h1 class="page-title">文章</h1>
-  <p class="page-lead">投资、阅读与工作中的思考，写完即定稿，按时间排列。</p>
+  <div slot="hero" class="page-hero"><div class="wrap"><h1 class="page-title">文章</h1><p class="page-lead">投资、阅读与工作中的思考，按时间排列。</p></div></div>
   {posts.length === 0 && <p class="empty">还没有文章。</p>}
   {[...byYear].map(([year, list]) => (
     <section class="block" style="padding-top: 40px">

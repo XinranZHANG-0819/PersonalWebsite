@@ -47,32 +47,6 @@
   --chart-glow: none;
   --code-bg: #EAEFFD;
 }
-/* 没有脚本时，白天的系统设置也生效 */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) {
-  color-scheme: light;
-  --bg: #F4F7FF;
-  --ink: #0B1230;
-  --ink-2: #4A5680;
-  --ink-3: #66739E;
-  --line: #DCE3F8;
-  --card: rgba(255, 255, 255, 0.92);
-  --card-line: #D5DEF6;
-  --card-edge: linear-gradient(90deg, transparent, rgba(36, 71, 245, 0.45), transparent);
-  --accent: #2447F5;
-  --accent-2: #0A9BD8;
-  --link: #2447F5;
-  --series2: #D9730D;
-  --up: #D3262F;
-  --down: #17824F;
-  --glow: rgba(36, 71, 245, 0.16);
-  --grid: #DCE3F8;
-  --dot: #2447F5;
-  --dot-a: 0.2;
-  --chart-glow: none;
-  --code-bg: #EAEFFD;
-  }
-}
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -180,6 +154,11 @@ html[data-theme="light"] .astro-code, html[data-theme="light"] .astro-code span 
 .hero-inner p { margin: 18px 0 0; width: fit-content; max-width: min(34em, 100%); font-size: clamp(16px, 1.3vw, 19px); line-height: 1.85; color: var(--ink-2); pointer-events: auto; }
 .hero-hint { position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; font-family: var(--mono); font-size: 12px; color: var(--ink-3); letter-spacing: 0.04em; pointer-events: none; }
 @media (hover: none) { .hero-hint { display: none; } }
+
+/* 子页面顶部的标题区：和首页一样不在“内容区域”里，所以粒子整屏宽铺满 */
+.page-hero { position: relative; margin-top: -76px; pointer-events: none; }
+.page-hero > .wrap { padding-top: 76px; padding-bottom: 8px; }
+.page-hero h1.page-title, .page-hero .page-lead, .page-hero .meta, .page-hero .tags { pointer-events: auto; width: fit-content; max-width: 100%; }
 
 @media (max-width: 640px) {
   .post-row { flex-direction: column; gap: 2px; }

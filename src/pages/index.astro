@@ -6,8 +6,6 @@ import Sparkline from '../components/Sparkline.astro';
 import { quotes, arrow, fmt, updatedAt, isDemo } from '../lib-markets';
 
 const posts = (await getCollection('blog', (p) => !p.data.draft)).sort((a, b) => +b.data.date - +a.data.date).slice(0, 5);
-const notes = (await getCollection('notes', (n) => !n.data.draft)).sort((a, b) => +b.data.updated - +a.data.updated);
-const topics = [...new Set(notes.map((n) => n.data.topic))];
 const featured = ['sh000300', 'us10y', 'spx', 'gold'];
 const all = quotes();
 const tiles = featured.map((id) => all.find((q) => q.id === id)).filter(Boolean) as ReturnType<typeof quotes>;
@@ -43,12 +41,6 @@ const stamp = updatedAt ? updatedAt.slice(0, 16).replace('T', ' ') + ' UTC' : ''
     {posts.length ? posts.map((p) => <PostRow href={`/blog/${p.id}/`} title={p.data.title} date={p.data.date} />) : <p class="empty">还没有文章。</p>}
   </section>
 
-  {topics.length > 0 && (
-    <section class="block">
-      <div class="head"><h2>笔记</h2><a href="/notes/">全部 →</a></div>
-      <div class="topics">{topics.map((t) => <a href={`/notes/#${encodeURIComponent(t)}`}>{t}</a>)}</div>
-    </section>
-  )}
 </Base>
 
 <style>
@@ -59,6 +51,4 @@ const stamp = updatedAt ? updatedAt.slice(0, 16).replace('T', ' ') + ' UTC' : ''
   .v { font-family: var(--mono); font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
   .c { font-family: var(--mono); font-size: 13px; margin-bottom: 8px; }
   .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
-  .topics { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-top: 20px; font-size: 15px; }
-  .topics a:hover { color: var(--link); }
 </style>
