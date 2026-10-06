@@ -24,6 +24,7 @@ for (const x of P.signals as any[]) {
   if (q) mk[id] = { name: q.name, decimals: q.decimals, prefix: q.prefix, suffix: q.suffix, kind: q.kind, points: q.points };
   else if (x.chart.source === 'indicators' && indicators[id]) mk[id] = { name: x.chart.name, decimals: x.chart.decimals ?? 2, prefix: '', suffix: '', kind: 'nav', points: indicators[id].points };
 }
+const indLast = (id: string) => { const pts = indicators[id]?.points; return pts && pts.length ? pts[pts.length - 1][1] : null; };
 const fmtN = (v: number, d: number) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const heads: Record<string, { value: string; dir: 'up' | 'down' | 'flat'; text: string; label: string }> = {};
 for (const x of P.signals as any[]) {
@@ -35,7 +36,8 @@ for (const x of P.signals as any[]) {
   const diff = isY ? (b - a) * 100 : ((b - a) / a) * 100;
   heads[x.id] = {
     value: `${m.prefix ?? ''}${fmtN(b, m.decimals)}${m.suffix ?? ''}`,
-    dir: diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat',
+    // 四舍五入后是 0 的，按持平显示
+    dir: Number(Math.abs(diff).toFixed(isY ? 1 : 2)) === 0 ? 'flat' : diff > 0 ? 'up' : 'down',
     text: isY ? `${Math.abs(diff).toFixed(1)} bp` : `${Math.abs(diff).toFixed(2)}%`,
     label: x.id === 'btc' ? '较前一日' : '较上一交易日',
   };
@@ -99,7 +101,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
           {heads[s.id] && (
             <div class="hd">
               <span class="hv mono">{heads[s.id].value}</span>
-              <span class={`hc mono ${heads[s.id].dir}`}>{arrow(heads[s.id].dir)} {heads[s.id].text} <span class="muted">{heads[s.id].label}</span></span>
+              <span class={`hc mono ${heads[s.id].dir}`}>{arrow(heads[s.id].dir)} {heads[s.id].text}</span>
             </div>
           )}
           {s.chart && (
@@ -111,7 +113,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
           <div class="bottom">
           <div class="metric">{s.metric}</div>
           <div class="rd">
-            <div class="reading mono">{s.live ? (s.showLive && live(s.live) ? `${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : '') : s.reading}</div>
+            <div class="reading mono">{s.live ? (s.showLive && live(s.live) ? `${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : '') : s.readIndicator ? (indLast(s.readIndicator) != null ? `${indLast(s.readIndicator)!.toFixed(2)}%` : '') : s.reading}</div>
             {s.stateText && <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>}
           </div>
 
@@ -248,8 +250,8 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
     const out = card.querySelector<HTMLElement>('[data-ret]');
     if (!out) return;
     const up = last > first, flat = last === first;
-    const sign = up ? '+' : flat ? '' : '−';
-    const val = kind === 'yield' ? `${sign}${Math.abs((last - first) * 100).toFixed(0)} bp` : `${sign}${Math.abs(((last - first) / first) * 100).toFixed(1)}%`;
+    const arrow = up ? '▲' : flat ? '–' : '▼';
+    const val = kind === 'yield' ? `${arrow} ${Math.abs((last - first) * 100).toFixed(0)} bp` : `${arrow} ${Math.abs(((last - first) / first) * 100).toFixed(1)}%`;
     out.textContent = '';
     const lab = document.createElement('span'); lab.textContent = LABELS[days] || ''; lab.style.cssText = 'color:var(--ink-3);font-family:var(--sans);margin-right:6px';
     const num = document.createElement('span'); num.textContent = val;

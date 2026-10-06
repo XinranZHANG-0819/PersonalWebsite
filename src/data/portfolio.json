@@ -50,7 +50,7 @@
     },
     {
       "id": "us-stock",
-      "asset": "纳指 100",
+      "asset": "美股",
       "weight": 20,
       "metric": "超额 CAPE 收益率",
       "reading": "+1.07%",
@@ -106,7 +106,7 @@
       "id": "cn-bond",
       "asset": "国内债",
       "weight": 30,
-      "metric": "纯债基金经理、近 3 年回撤、综合分、杠杆；161119 跟踪偏差",
+      "metric": "10 年国债收益率",
       "reading": "年度复核",
       "gauge": null,
       "chart": {
@@ -120,13 +120,14 @@
           "decimals": 2,
           "suffix": "%"
         }
-      }
+      },
+      "readIndicator": "cn10y"
     },
     {
       "id": "us-bond",
       "asset": "美债",
       "weight": 0,
-      "metric": "10 年美债收益率（超额 CAPE 的输入项）",
+      "metric": "10 年美债收益率",
       "reading": "",
       "gauge": null,
       "chart": {
@@ -146,7 +147,7 @@
       "id": "gold",
       "asset": "黄金",
       "weight": 15,
-      "metric": "24 个月动量（只参考）",
+      "metric": "24 个月动量",
       "reading": "+52.8%",
       "gauge": null,
       "state": "buy",
