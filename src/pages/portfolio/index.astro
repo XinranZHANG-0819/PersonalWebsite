@@ -85,6 +85,13 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
             <span class="asset">{s.asset} <span class="w mono">{s.weight}%</span></span>
             <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>
           </header>
+          {s.chart && (
+            <div class="chart" data-chart>
+              {!mk[s.chart.main] && <p class="nodata">走势数据待下一次自动更新</p>}
+            </div>
+          )}
+          {!s.chart && <p class="nodata">暂无免费数据源，待接入</p>}
+          {s.chart?.indicator && !charts[s.id].ind && <p class="nodata">PB 分位历史曲线待数据源接入</p>}
           <div class="metric">{s.metric}</div>
           <div class="reading mono">{s.live && live(s.live) ? `${live(s.live)!.prefix}${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : s.reading}</div>
 
@@ -134,13 +141,6 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
             </div>
           )}
 
-          {s.chart && (
-            <div class="chart" data-chart>
-              {!mk[s.chart.main] && <p class="nodata">走势数据待下一次自动更新</p>}
-            </div>
-          )}
-          {!s.chart && <p class="nodata">暂无免费数据源，待接入</p>}
-          {s.chart?.indicator && !charts[s.id].ind && <p class="nodata">PB 分位历史曲线待数据源接入</p>}
         </article>
       ); })}
     </div>
@@ -238,8 +238,8 @@ const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: 
   .ranges button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
   .ranges button:hover { color: var(--ink); }
   .ranges button.on { color: var(--ink); border-color: var(--line); background: color-mix(in srgb, var(--ink) 5%, transparent); }
-  .chart { position: relative; margin-top: 14px; min-height: 40px; }
-  .nodata { margin: 14px 0 0; font-size: 13px; color: var(--ink-3); }
+  .chart { position: relative; margin: 12px 0 14px; min-height: 40px; }
+  .nodata { margin: 12px 0 6px; font-size: 13px; color: var(--ink-3); }
   .sig.wide { grid-column: 1 / -1; }
   .gauge { margin-top: 10px; }
   .track { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: visible; }
