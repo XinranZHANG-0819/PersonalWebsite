@@ -61,9 +61,10 @@
       },
       "state": "half",
       "stateText": "半仓",
-      "rule": "低于 30% 满仓，30%–70% 半仓，高于 70% 空仓",
-      "action": "持有一半，另一半放货基；分位降到 30% 以下时买回沪深300",
-      "check": "每月末"
+      "chart": {
+        "main": "sh000300",
+        "indicator": "pb300"
+      }
     },
     {
       "id": "us-stock",
@@ -80,9 +81,9 @@
       },
       "state": "buy",
       "stateText": "可以买",
-      "rule": "为正即买；为负时新钱暂缓；泡沫防护触发时新钱改买标普",
-      "action": "泡沫防护未触发（1.8 个点、1.11 倍），买纳指。10 年美债收益率 5.26%，再升约 0.6 个点超额 CAPE 会转负",
-      "check": "每年 1 月、资金到账时"
+      "chart": {
+        "main": "ndx"
+      }
     },
     {
       "id": "cn-bond",
@@ -92,10 +93,21 @@
       "reading": "年度复核",
       "gauge": null,
       "state": "plan",
-      "stateText": "不择时",
-      "rule": "经理离任、回撤超 3%、综合分跌出前 20% 或杠杆超 130% 就换；161119 偏差超 0.5 个点就换",
-      "action": "资金到位一次性买入，两部分各半",
-      "check": "每年一次"
+      "stateText": "不择时"
+    },
+    {
+      "id": "us-bond",
+      "asset": "美债",
+      "weight": 0,
+      "metric": "10 年美债收益率（超额 CAPE 的输入项）",
+      "reading": "",
+      "gauge": null,
+      "state": "track",
+      "stateText": "仅跟踪",
+      "chart": {
+        "main": "us10y"
+      },
+      "live": "us10y"
     },
     {
       "id": "gold",
@@ -106,9 +118,9 @@
       "gauge": null,
       "state": "plan",
       "stateText": "按计划买",
-      "rule": "动量为正按计划买，为负仍买，不提前、不加码；不因动量、新高或暴跌卖",
-      "action": "分 4 个季度买，每次 37,500 元",
-      "check": "每次买入前"
+      "chart": {
+        "main": "gold"
+      }
     },
     {
       "id": "btc",
@@ -121,9 +133,24 @@
       },
       "state": "wait",
       "stateText": "等待",
-      "rule": "进入窗口当月买到 5%；离开窗口当月清仓转货基；窗口内每年 12 月调回 5%",
-      "action": "这 5% 先放货基；2027-04 进入窗口时在币安买入现货",
-      "check": "每月"
+      "chart": {
+        "main": "btc"
+      }
+    },
+    {
+      "id": "usdcny",
+      "asset": "美元兑人民币",
+      "weight": 0,
+      "metric": "汇率（境外资产折算人民币）",
+      "reading": "",
+      "gauge": null,
+      "state": "track",
+      "stateText": "仅跟踪",
+      "chart": {
+        "main": "usdcny"
+      },
+      "live": "usdcny",
+      "wide": true
     }
   ],
   "calendar": [

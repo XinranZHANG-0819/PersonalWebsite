@@ -14,12 +14,19 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - run: node scripts/fetch-data.mjs
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: 抓取 PB 分位（失败不影响其他数据）
+        continue-on-error: true
+        run: |
+          pip install akshare pandas
+          python scripts/fetch_pb.py
       - name: 提交有变化的数据
         run: |
-          if [ -n "$(git status --porcelain src/data/markets.json)" ]; then
+          if [ -n "$(git status --porcelain src/data)" ]; then
             git config user.name "data-bot"
             git config user.email "data-bot@users.noreply.github.com"
-            git add src/data/markets.json
+            git add src/data
             git commit -m "chore: 更新行情数据"
             git push
           fi

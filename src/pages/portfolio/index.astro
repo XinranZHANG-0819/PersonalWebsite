@@ -1,12 +1,11 @@
 ---
 import Base from '../../layouts/Base.astro';
-import Sparkline from '../../components/Sparkline.astro';
 import P from '../../data/portfolio.json';
 import { quotes, arrow, fmt, isDemo } from '../../lib-markets';
 
 const money = (n: number) => n.toLocaleString('en-US');
 const states: Record<string, { glyph: string; cls: string }> = {
-  buy: { glyph: '●', cls: 'buy' }, half: { glyph: '◐', cls: 'half' }, plan: { glyph: '■', cls: 'plan' }, wait: { glyph: '○', cls: 'wait' },
+  buy: { glyph: '●', cls: 'buy' }, track: { glyph: '–', cls: 'wait' }, half: { glyph: '◐', cls: 'half' }, plan: { glyph: '■', cls: 'plan' }, wait: { glyph: '○', cls: 'wait' },
 };
 const countBy = (s: string) => P.signals.filter((x) => x.state === s).length;
 const summary = [
@@ -35,14 +34,17 @@ const domestic = P.targets.filter((t) => t.region === '境内').reduce((a, b) =>
 const overseas = P.targets.filter((t) => t.region === '境外').reduce((a, b) => a + b.pct, 0);
 
 const all = quotes();
-const trackIds = ['sh000300', 'ndx', 'gold', 'btc', 'usdcny', 'us10y'];
-const tiles = trackIds.map((id) => all.find((q) => q.id === id)).filter(Boolean) as ReturnType<typeof quotes>;
-const oneYear = (q: ReturnType<typeof quotes>[number]) => {
-  const pts = q.points.slice(-252);
-  const a = pts[0][1], b = pts[pts.length - 1][1];
-  return q.kind === 'yield' ? { text: `${b >= a ? '+' : '−'}${Math.abs((b - a) * 100).toFixed(0)} bp`, dir: b > a ? 'up' : b < a ? 'down' : 'flat', vals: pts.map((p) => p[1]) }
-    : { text: `${b >= a ? '+' : '−'}${Math.abs(((b - a) / a) * 100).toFixed(1)}%`, dir: b > a ? 'up' : b < a ? 'down' : 'flat', vals: pts.map((p) => p[1]) };
-};
+let indicators: Record<string, { points: [string, number][] }> = {};
+try { indicators = (await import('../../data/indicators.json')).default.series as any; } catch {}
+const live = (id?: string) => (id ? all.find((q) => q.id === id) : undefined);
+const needed = new Set<string>();
+P.signals.forEach((x: any) => { if (x.chart) { needed.add(x.chart.main); } });
+const mk: Record<string, any> = {};
+for (const id of needed) { const q = live(id); if (q) mk[id] = { name: q.name, decimals: q.decimals, prefix: q.prefix, suffix: q.suffix, points: q.points }; }
+const charts = Object.fromEntries(P.signals.filter((x: any) => x.chart).map((x: any) => [x.id, {
+  main: x.chart.main, indicator: x.chart.indicator ?? null,
+  ind: x.chart.indicator ? indicators[x.chart.indicator]?.points ?? null : null,
+}]));
 ---
 <Base title="投资看板" description="按资产组合配置研究（Q3）搭建的跟踪看板：信号、资产状态、大盘走势和记录。">
   <h1 class="page-title">投资看板</h1>
@@ -66,16 +68,25 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
 
   <!-- 2. 买卖信号 -->
   <section class="block" aria-labelledby="s2">
-    <div class="head"><h2 id="s2">2 · 买卖信号</h2><span>每月</span></div>
+    <div class="head"><h2 id="s2">2 · 买卖信号与大盘走势</h2><a href="/markets/">全部指标 →</a></div>
+    <div class="bar2">
+      <div class="ranges" role="group" aria-label="时间范围">
+        <button type="button" data-range="30">1 月</button>
+        <button type="button" data-range="182">6 月</button>
+        <button type="button" data-range="365" class="on">1 年</button>
+        <button type="button" data-range="1095">3 年</button>
+      </div>
+      <span class="fine" style="margin:0">{isDemo ? '示例数据' : '行情每天自动更新'} · 读数日期 {P.report.readingsAsOf}</span>
+    </div>
     <div class="signals">
-      {P.signals.map((s) => (
-        <article class="sig">
+      {P.signals.map((sig) => { const s: any = sig; return (
+        <article class={`sig ${(sig as any).wide ? 'wide' : ''}`} data-id={sig.id}>
           <header>
             <span class="asset">{s.asset} <span class="w mono">{s.weight}%</span></span>
             <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>
           </header>
           <div class="metric">{s.metric}</div>
-          <div class="reading mono">{s.reading}</div>
+          <div class="reading mono">{s.live && live(s.live) ? `${live(s.live)!.prefix}${fmt(live(s.live)!.last, live(s.live)!.decimals)}${live(s.live)!.suffix}` : s.reading}</div>
 
           {s.gauge?.type === 'range' && (
             <div class="gauge" role="img" aria-label={`${s.metric} ${s.gauge.value}${s.gauge.unit}，阈值 ${s.gauge.marks.join('、')}`}>
@@ -123,15 +134,16 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
             </div>
           )}
 
-          <dl class="rows">
-            <div><dt>规则</dt><dd>{s.rule}</dd></div>
-            <div><dt>动作</dt><dd class="act">{s.action}</dd></div>
-            <div><dt>何时看</dt><dd>{s.check}</dd></div>
-          </dl>
+          {s.chart && (
+            <div class="chart" data-chart>
+              {!mk[s.chart.main] && <p class="nodata">走势数据待下一次自动更新</p>}
+            </div>
+          )}
+          {!s.chart && <p class="nodata">暂无免费数据源，待接入</p>}
+          {s.chart?.indicator && !charts[s.id].ind && <p class="nodata">PB 分位历史曲线待数据源接入</p>}
         </article>
-      ))}
+      ); })}
     </div>
-    <p class="fine">组合层面：每年 12 月再平衡，回到目标比例（A 股按当月档位），新钱先补低配的大类。</p>
   </section>
 
   <!-- 3. 资产状态 -->
@@ -172,28 +184,9 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
     <p class="fine">近 10 年是有利的一段（纳指、黄金、比特币都在牛市）。按不含比特币的约 10%–11% 做规划，比特币收益不计入底线。</p>
   </section>
 
-  <!-- 4. 大盘走势 -->
-  <section class="block" aria-labelledby="s4">
-    <div class="head"><h2 id="s4">4 · 大盘走势</h2><a href="/markets/">{isDemo ? '示例数据 · ' : ''}全部指标与区间切换 →</a></div>
-    <div class="tiles">
-      {tiles.map((q) => {
-        const y = oneYear(q);
-        return (
-          <a class="tile" href="/markets/">
-            <span class="n">{q.name}</span>
-            <span class="v mono">{q.prefix}{fmt(q.last, q.decimals)}{q.suffix}</span>
-            <span class={`c mono ${y.dir}`}>{y.dir === 'up' ? '▲' : y.dir === 'down' ? '▼' : '–'} {y.text}<span class="muted"> 近 1 年</span></span>
-            <Sparkline values={y.vals} />
-          </a>
-        );
-      })}
-    </div>
-    <p class="fine">报告还要求画“沪深300 与 PB 分位”“纳指与超额 CAPE”“USDT 场外价”。这几条的数据 Yahoo Finance 里没有，需要另接数据源，目前只在第 2 块里显示当前读数。</p>
-  </section>
-
   <!-- 5. 持仓与记录 -->
-  <section class="block" aria-labelledby="s5">
-    <div class="head"><h2 id="s5">5 · 持仓与记录</h2><span>有交易时</span></div>
+  <section class="block" aria-labelledby="s4">
+    <div class="head"><h2 id="s4">4 · 持仓与记录</h2><span>有交易时</span></div>
     <h3 class="sub">产品与计划</h3>
     <p class="fine tag-example"><b>示例</b> {P.example.label}，份额、成本和费用待真实持仓接入。</p>
     <div class="scroll">
@@ -209,6 +202,7 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
   </section>
 
   <p class="fine disclaimer">个人记录，不构成投资建议。报告里的结论基于历史回测，存在样本内挑选的成分，详见报告第七章“局限”。</p>
+  <script type="application/json" id="pf-data" set:html={JSON.stringify({ mk, charts })} />
 </Base>
 
 <style>
@@ -239,6 +233,14 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
   .metric { font-size: 13px; color: var(--ink-3); }
   .reading { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
 
+  .bar2 { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .ranges { display: flex; gap: 4px; }
+  .ranges button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .ranges button:hover { color: var(--ink); }
+  .ranges button.on { color: var(--ink); border-color: var(--line); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+  .chart { position: relative; margin-top: 14px; min-height: 40px; }
+  .nodata { margin: 14px 0 0; font-size: 13px; color: var(--ink-3); }
+  .sig.wide { grid-column: 1 / -1; }
   .gauge { margin-top: 10px; }
   .track { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: visible; }
   .zone { position: absolute; top: 0; bottom: 0; }
@@ -277,7 +279,7 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
   .bar .dom { background: color-mix(in srgb, var(--accent) 22%, var(--bg)); }
   .bar .ovs { background: color-mix(in srgb, var(--ink) 10%, var(--bg)); }
 
-  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 28px; margin-top: 24px; }
+
   .tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .tile .n { font-size: 13px; color: var(--ink-2); }
   .tile .v { font-size: 19px; font-weight: 500; letter-spacing: -0.02em; }
@@ -292,7 +294,6 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
 
   @media (max-width: 700px) {
     .signals { grid-template-columns: minmax(0, 1fr); gap: 36px; }
-    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .cal li { grid-template-columns: 60px 1fr; }
     .cal-left { grid-column: 2; text-align: left; }
     .log li { grid-template-columns: 1fr; gap: 0; }
@@ -314,4 +315,38 @@ const oneYear = (q: ReturnType<typeof quotes>[number]) => {
   });
   const v = document.getElementById('verdict');
   if (v && next) v.textContent = v.textContent + ` 下一个节点：${(next as any).label}，还有 ${(next as any).days} 天。`;
+</script>
+
+<script>
+  import { mountChart } from '../../scripts/chart';
+  const raw = JSON.parse(document.getElementById('pf-data')!.textContent || '{}');
+  const mk = raw.mk as Record<string, any>;
+  const charts = raw.charts as Record<string, { main: string; indicator: string | null; ind: [string, number][] | null }>;
+  let days = 365;
+  function renderAll() {
+    document.querySelectorAll<HTMLElement>('.sig').forEach((card) => {
+      const id = card.dataset.id!;
+      const box = card.querySelector<HTMLElement>('[data-chart]');
+      const c = charts[id];
+      if (!box || !c || !mk[c.main]) return;
+      const m = mk[c.main];
+      const panels: any[] = [{ label: m.name, points: m.points, decimals: m.decimals, prefix: m.prefix, suffix: m.suffix, color: 'var(--accent)', height: 110, area: true }];
+      if (c.ind) panels.push({ label: 'PB 分位', points: c.ind, decimals: 0, suffix: '%', color: 'var(--series2)', height: 76, domain: [0, 100], refs: [{ v: 30, label: '30' }, { v: 70, label: '70' }] });
+      const note = box.querySelector('.nodata');
+      box.textContent = '';
+      if (note) box.appendChild(note);
+      const holder = document.createElement('div');
+      box.insertBefore(holder, box.firstChild);
+      mountChart(holder, panels, days);
+    });
+  }
+  renderAll();
+  let t: number;
+  window.addEventListener('resize', () => { clearTimeout(t); t = window.setTimeout(renderAll, 120); });
+  new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  document.querySelectorAll<HTMLButtonElement>('[data-range]').forEach((b) => b.addEventListener('click', () => {
+    days = Number(b.dataset.range);
+    document.querySelectorAll('[data-range]').forEach((o) => o.classList.toggle('on', o === b));
+    renderAll();
+  }));
 </script>
