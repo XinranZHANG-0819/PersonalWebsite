@@ -75,7 +75,7 @@ def cbond():
     return to_points(s, 4)
 
 
-def excape():
+def excape_shiller():
     """超额 CAPE 收益率（估算）= 1/CAPE − （10 年美债收益率 − 过去 10 年平均通胀）。
     数据：Shiller 公开数据表（标普 500 的 CAPE、CPI、10 年国债利率），月度。"""
     import io, urllib.request
@@ -105,6 +105,63 @@ def excape():
     if len(ex) < 60:
         raise RuntimeError(f"too few points: {len(ex)}")
     return to_points(ex, 2)
+
+
+def _http(url: str) -> bytes:
+    import urllib.request
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (personal-website data fetcher)"})
+    return urllib.request.urlopen(req, timeout=60).read()
+
+
+def _month_end(idx) -> pd.DatetimeIndex:
+    return pd.DatetimeIndex(pd.to_datetime(idx)) + pd.offsets.MonthEnd(0)
+
+
+def _fred(series_id: str) -> pd.Series:
+    import io
+    df = pd.read_csv(io.BytesIO(_http(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}")))
+    df.columns = ["date", "v"]
+    return pd.Series(pd.to_numeric(df["v"], errors="coerce").values, index=_month_end(df["date"])).dropna()
+
+
+def _multpl_cape() -> pd.Series:
+    import io
+    html = _http("https://www.multpl.com/shiller-pe/table/by-month").decode("utf-8", "ignore")
+    t = pd.read_html(io.StringIO(html))[0]
+    t.columns = ["date", "v"]
+    d = pd.to_datetime(t["date"], errors="coerce")
+    v = pd.to_numeric(t["v"].astype(str).str.extract(r"([\d.]+)")[0], errors="coerce")
+    ser = pd.Series(v.values, index=_month_end(d.fillna(pd.Timestamp("1900-01-31")))).dropna()
+    return ser[ser.index > "1950-01-01"].sort_index()
+
+
+def excape_current():
+    """超额 CAPE 收益率（估算）= 1/CAPE − （10 年美债收益率 − 过去 10 年平均通胀）。
+    CAPE：multpl（标普 500 席勒市盈率，月度，实时更新）；10 年美债利率 GS10、CPI：美联储 FRED。"""
+    cape = _multpl_cape()
+    gs10 = _fred("GS10")
+    cpi = _fred("CPIAUCSL")
+    print("  cape", cape.index[-1].date(), cape.iloc[-1], "| gs10", gs10.index[-1].date(), gs10.iloc[-1], "| cpi", cpi.index[-1].date())
+    df = pd.concat([cape.rename("cape"), gs10.rename("gs10"), cpi.rename("cpi")], axis=1).sort_index()
+    df[["gs10", "cpi"]] = df[["gs10", "cpi"]].ffill(limit=2)   # 利率、CPI 公布略晚，向前补最多 2 个月
+    infl = ((df["cpi"] / df["cpi"].shift(120)) ** (1 / 10) - 1) * 100
+    ex = ((100 / df["cape"]) - (df["gs10"] - infl)).dropna()
+    if len(ex) < 60:
+        raise RuntimeError(f"too few points: {len(ex)}")
+    if ex.index[-1] < pd.Timestamp.now() - pd.Timedelta(days=120):
+        raise RuntimeError(f"stale: last {ex.index[-1].date()}")
+    return to_points(ex, 2)
+
+
+def excape():
+    errs = []
+    for fn in (excape_current, excape_shiller):
+        try:
+            return fn()
+        except Exception as e:
+            errs.append(f"{fn.__name__}: {e}")
+            print("  ", errs[-1], file=sys.stderr)
+    raise RuntimeError("; ".join(errs))
 
 
 def patch_markets():
