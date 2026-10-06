@@ -169,7 +169,7 @@
     },
     {
       "id": "usdcny",
-      "asset": "美元兑人民币",
+      "asset": "汇率",
       "weight": 0,
       "metric": "",
       "reading": "",
@@ -177,8 +177,7 @@
       "chart": {
         "main": "usdcny"
       },
-      "live": "usdcny",
-      "fx": true
+      "live": "usdcny"
     }
   ],
   "btcWindow": {

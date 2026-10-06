@@ -42,10 +42,7 @@ for (const x of P.signals as any[]) {
     label: x.id === 'btc' ? '较前一日' : '较上一交易日',
   };
 }
-const groups = [
-  { title: '', cards: (P.signals as any[]).filter((x) => !x.fx) },
-  { title: '汇率', note: '', cards: (P.signals as any[]).filter((x) => x.fx) },
-];
+const groups = [{ title: '', note: '', cards: P.signals as any[] }];
 // 24 个月动量：每个点对比两年前最近一个点的涨幅（%）
 const momentum = (pts: [string, number][]) => {
   const out: [string, number][] = [];
