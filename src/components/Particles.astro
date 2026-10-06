@@ -8,7 +8,7 @@
   var hero = cv.parentElement;
   var ctx = cv.getContext('2d');
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var GAP = 26, RADIUS = 130, PUSH = 46;
+  var GAP = 18, RADIUS = 120, PUSH = 46;
   var W = 0, H = 0, dpr = 1, dots = [];
   var mouse = { x: -9999, y: -9999, active: false };
   var col = { dot: '#17181A', a: 0.16, accent: '#2A6BE0' };
@@ -59,8 +59,8 @@
       var off = Math.hypot(d.x - d.hx, d.y - d.hy);
       var near = 0;
       if (mouse.active) near = Math.max(0, 1 - Math.hypot(d.x - mouse.x, d.y - mouse.y) / (RADIUS * 1.2));
-      var rad = 1.15 + near * 1.6;
-      ctx.globalAlpha = col.a + near * 0.4;
+      var rad = 1.05 + near * 1.5;
+      ctx.globalAlpha = col.a * 0.85 + near * 0.4;
       ctx.fillStyle = col.dot;
       ctx.beginPath(); ctx.arc(d.x, d.y, rad, 0, 6.2832); ctx.fill();
       if (off > 1.5) {
