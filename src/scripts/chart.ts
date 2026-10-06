@@ -138,7 +138,19 @@ export function mountChart(box: HTMLElement, panels: Panel[], days: number, opts
     const gc = el('g', { 'clip-path': `url(#${cid})` });
     const d = pts.map((q, k) => `${k ? 'L' : 'M'}${x(tm(q[0])).toFixed(1)} ${y(q[1]).toFixed(1)}`).join(' ');
     if (p.area && !over) gc.appendChild(el('path', { d: `${d} L${x(tm(pts[pts.length - 1][0])).toFixed(1)} ${top0 + H0 - BOT} L${x(tm(pts[0][0])).toFixed(1)} ${top0 + H0 - BOT} Z`, fill: p.color, opacity: '0.08' }));
-    gc.appendChild(el('path', { d, fill: 'none', stroke: p.color, 'stroke-width': '2', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    // 主线：蓝到青的渐变 + 冷光（浅色版没有光）
+    let strokePaint = p.color;
+    if (!over && i === 0 && p.color === 'var(--accent)') {
+      const gid = cid + 'g';
+      const lg = el('linearGradient', { id: gid, gradientUnits: 'userSpaceOnUse', x1: String(L), x2: String(W - R), y1: '0', y2: '0' });
+      lg.appendChild(el('stop', { offset: '0', 'stop-color': 'var(--accent)' }));
+      lg.appendChild(el('stop', { offset: '1', 'stop-color': 'var(--accent-2)' }));
+      defs.appendChild(lg);
+      strokePaint = `url(#${gid})`;
+    }
+    const linePath = el('path', { d, fill: 'none', stroke: strokePaint, 'stroke-width': '2', 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+    linePath.style.filter = 'var(--chart-glow)';
+    gc.appendChild(linePath);
     g.appendChild(gc);
     const last = pts[pts.length - 1];
     g.appendChild(el('circle', { cx: String(x(tm(last[0]))), cy: String(y(last[1])), r: '5', fill: 'var(--bg)' }));

@@ -6,9 +6,9 @@ const posts = (await getCollection('blog', (p) => !p.data.draft)).sort((a, b) =>
 const byYear = new Map<number, typeof posts>();
 for (const p of posts) { const y = p.data.date.getFullYear(); byYear.set(y, [...(byYear.get(y) ?? []), p]); }
 ---
-<Base title="博客" description="按时间排列的文章。">
-  <h1 class="page-title">博客</h1>
-  <p class="page-lead">投资、阅读与工作中的思考，按时间排列。</p>
+<Base title="文章" description="按时间排列的文章。">
+  <h1 class="page-title">文章</h1>
+  <p class="page-lead">投资、阅读与工作中的思考，写完即定稿，按时间排列。</p>
   {posts.length === 0 && <p class="empty">还没有文章。</p>}
   {[...byYear].map(([year, list]) => (
     <section class="block" style="padding-top: 40px">

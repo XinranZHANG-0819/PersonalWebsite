@@ -6,9 +6,9 @@ const notes = (await getCollection('notes', (n) => !n.data.draft)).sort((a, b) =
 const groups = new Map<string, typeof notes>();
 for (const n of notes) groups.set(n.data.topic, [...(groups.get(n.data.topic) ?? []), n]);
 ---
-<Base title="知识库" description="按主题整理、持续更新的笔记。">
-  <h1 class="page-title">知识库</h1>
-  <p class="page-lead">按主题整理，会持续修改。右侧的日期是最近一次更新。</p>
+<Base title="笔记" description="按主题整理、持续更新的笔记。">
+  <h1 class="page-title">笔记</h1>
+  <p class="page-lead">按主题整理，会持续修改，右侧的日期是最近一次更新。</p>
   {notes.length === 0 && <p class="empty">还没有笔记。</p>}
   {[...groups].map(([topic, list]) => (
     <section class="block" style="padding-top: 40px" id={topic}>

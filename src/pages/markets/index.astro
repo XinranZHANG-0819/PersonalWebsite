@@ -8,8 +8,8 @@ const payload = Object.fromEntries(
   all.map((q) => [q.id, { name: q.name, decimals: q.decimals, prefix: q.prefix, suffix: q.suffix, kind: q.kind, points: q.points }]),
 );
 ---
-<Base title="大盘走势" description="A 股、债券、美股、黄金等指标的走势。">
-  <p class="meta"><a href="/portfolio/">← 资产罗盘</a></p>
+<Base size="wide" title="大盘走势" description="A 股、债券、美股、黄金等指标的走势。">
+  <p class="meta"><a href="/portfolio/">← 理财罗盘</a></p>
   <h1 class="page-title" style="margin-top: 20px">大盘走势</h1>
   <p class="page-lead">我关注的指标随时间的变化。数据每天自动更新，不是实时行情。</p>
 
@@ -62,7 +62,7 @@ const payload = Object.fromEntries(
   .ranges button:hover { color: var(--ink); }
   .ranges button.on { color: var(--ink); border-color: var(--line); background: color-mix(in srgb, var(--ink) 5%, transparent); }
   .stamp { font-size: 12.5px; color: var(--ink-3); font-family: var(--mono); }
-  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 40px; margin-top: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); gap: 36px 40px; margin-top: 24px; }
   .card { min-width: 0; }
   .row1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
   .n { font-size: 14px; color: var(--ink-2); }
@@ -74,7 +74,6 @@ const payload = Object.fromEntries(
   .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
   .chart { position: relative; margin-top: 12px; height: 120px; }
   .note { margin-top: 56px; font-size: 13px; color: var(--ink-3); }
-  @media (max-width: 640px) { .cards { grid-template-columns: minmax(0, 1fr); } }
 </style>
 
 <script>

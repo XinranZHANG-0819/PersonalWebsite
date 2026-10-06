@@ -1,20 +1,26 @@
 ---
 import '../styles/global.css';
 
-interface Props { title?: string; description?: string; type?: 'website' | 'article'; wide?: boolean; }
-const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website', wide = false } = Astro.props;
-const wrapCls = wide ? 'wrap wide' : 'wrap';
+interface Props {
+  title?: string;
+  description?: string;
+  type?: 'website' | 'article';
+  /** 内容宽度：read 文章 · list 列表（默认）· home 首页 · wide 资产看板 */
+  size?: 'read' | 'list' | 'home' | 'wide';
+}
+const { title, description = '投资、阅读与工作的记录，以及我关心的市场指标。', type = 'website', size = 'list' } = Astro.props;
 const siteName = 'Xinran';
 const fullTitle = title ? `${title} · ${siteName}` : siteName;
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const path = Astro.url.pathname;
 const nav = [
-  { href: '/blog/', label: '博客' },
-  { href: '/notes/', label: '知识库' },
-  { href: '/portfolio/', label: '看板' },
+  { href: '/blog/', label: '文章' },
+  { href: '/notes/', label: '笔记' },
+  { href: '/portfolio/', label: '理财' },
   { href: '/about/', label: '关于' },
 ];
 const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' && path.startsWith('/markets/'));
+const wrapCls = size === 'list' ? 'wrap' : `wrap ${size}`;
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -23,6 +29,7 @@ const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' 
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
+    <meta name="theme-color" content="#050816" />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate" type="application/rss+xml" title={siteName} href="/rss.xml" />
@@ -31,7 +38,17 @@ const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' 
     <meta property="og:type" content={type} />
     <meta property="og:url" content={canonical} />
     <script is:inline>
-      try { var t = localStorage.getItem('theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+      // 白天 / 夜间：优先用你选过的，没有选过就跟随系统
+      (function () {
+        var root = document.documentElement, t = null;
+        try { t = localStorage.getItem('theme'); } catch (e) {}
+        var mq = window.matchMedia('(prefers-color-scheme: light)');
+        root.setAttribute('data-theme', t === 'light' || t === 'dark' ? t : (mq.matches ? 'light' : 'dark'));
+        mq.addEventListener && mq.addEventListener('change', function (e) {
+          var saved = null; try { saved = localStorage.getItem('theme'); } catch (x) {}
+          if (!saved) root.setAttribute('data-theme', e.matches ? 'light' : 'dark');
+        });
+      })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -44,25 +61,26 @@ const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' 
           <a class="brand" href="/">Xinran</a>
           <nav aria-label="主导航">
             {nav.map((n) => <a href={n.href} aria-current={here(n.href) ? 'page' : undefined}>{n.label}</a>)}
+            <button class="theme-btn" id="theme-btn" type="button" aria-label="切换白天 / 夜间">
+              <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+              <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+            </button>
           </nav>
         </header>
       </div>
+      <slot name="hero" />
       <main class={wrapCls}><slot /></main>
       <div class={wrapCls}>
         <footer class="site-footer">
           <span>© {new Date().getFullYear()} Xinran</span>
-          <span class="links">
-            <a href="/rss.xml">RSS</a>
-            <button class="theme-btn" id="theme-btn" type="button">切换明暗</button>
-          </span>
+          <span class="links"><a href="/rss.xml">RSS</a></span>
         </footer>
       </div>
     </div>
     <script is:inline>
       document.getElementById('theme-btn').addEventListener('click', function () {
-        var root = document.documentElement, cur = root.getAttribute('data-theme');
-        var dark = cur ? cur === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var next = dark ? 'light' : 'dark';
+        var root = document.documentElement;
+        var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
         root.setAttribute('data-theme', next);
         try { localStorage.setItem('theme', next); } catch (e) {}
       });

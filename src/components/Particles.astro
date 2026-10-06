@@ -8,7 +8,7 @@
   var hero = cv.parentElement;
   var ctx = cv.getContext('2d');
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var GAP = 18, RADIUS = 120, PUSH = 46;
+  var GAP = window.innerWidth < 640 ? 18 : 16, RADIUS = 120, PUSH = 46;
   var W = 0, H = 0, dpr = 1, dots = [];
   var mouse = { x: -9999, y: -9999, active: false };
   var col = { dot: '#17181A', a: 0.16, accent: '#2A6BE0' };

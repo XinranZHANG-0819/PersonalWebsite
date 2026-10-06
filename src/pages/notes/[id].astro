@@ -10,11 +10,11 @@ const { note } = Astro.props;
 const { Content } = await render(note);
 const d = note.data.updated.toISOString().slice(0, 10);
 ---
-<Base title={note.data.title} description={note.data.description} type="article">
+<Base title={note.data.title} description={note.data.description} type="article" size="read">
   <article>
     <h1 class="page-title">{note.data.title}</h1>
     <p class="meta">{note.data.topic} · 更新于 <time datetime={d}>{d}</time></p>
     <div class="prose"><Content /></div>
   </article>
-  <p class="meta" style="margin-top: 56px"><a href="/notes/">← 返回知识库</a></p>
+  <p class="meta" style="margin-top: 56px"><a href="/notes/">← 返回笔记</a></p>
 </Base>

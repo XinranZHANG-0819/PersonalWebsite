@@ -67,11 +67,11 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   bands: x.chart.bands ?? null,
 }]));
 ---
-<Base wide title="资产罗盘" description="各类资产的走势、观测指标和当前读数。">
-  <h1 class="page-title">资产罗盘</h1>
+<Base size="wide" title="理财罗盘" description="各类资产的走势、观测指标和当前读数。">
+  <h1 class="page-title">理财罗盘</h1>
 
   <!-- 2. 买卖信号 -->
-  <section class="block" aria-label="资产走势与观测指标" style="padding-top: 36px">
+  <section class="block" aria-label="理财走势与观测指标" style="padding-top: 36px">
     <div class="bar2">
       <div class="ranges" role="group" aria-label="时间范围">
         <button type="button" data-range="30">1 月</button>
@@ -88,7 +88,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
       {g.title && <div class="head sm"><h2>{g.title}</h2><span>{g.note}</span></div>}
     <div class="signals">
       {g.cards.map((sig) => { const s: any = sig; return (
-        <article class="sig" data-id={sig.id}>
+        <article class="sig card" data-id={sig.id}>
           <header>
             <span class="asset">{s.asset}{s.chart && mk[s.chart.main] && mk[s.chart.main].name !== s.asset && <span class="sub">{mk[s.chart.main].name}</span>}</span>
             <span class="ret mono" data-ret></span>
@@ -174,7 +174,9 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
 
 
   .signals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
-  .sig { min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px 24px; }
+  @media (max-width: 1100px) { .signals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 700px) { .signals { grid-template-columns: minmax(0, 1fr); } }
+  .sig { min-width: 0; display: flex; flex-direction: column; padding: 22px 24px 24px; }
   .sig header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
   .hd { margin-top: 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 4px 14px; flex-wrap: wrap; }
   .hv { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.2; }
@@ -191,9 +193,9 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   .sig.wide { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); column-gap: 48px; align-items: center; }
   .sig.wide > * { grid-column: 1; }
   .sig.wide > .chart { grid-column: 2; grid-row: 1 / span 6; margin: 0; }
-  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; color: var(--ink-2); white-space: nowrap; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border: 1px solid var(--card-line); border-radius: 999px; padding: 1px 10px; color: var(--ink-2); white-space: nowrap; }
   .pill i { font-style: normal; font-size: 10px; }
-  .pill.buy { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .pill.buy { color: var(--link); border-color: color-mix(in srgb, var(--accent) 55%, var(--card-line)); box-shadow: 0 0 14px -5px var(--accent); }
   .pill.half { color: var(--ink); }
   .metric { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
   .reading { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
@@ -225,11 +227,7 @@ const charts = Object.fromEntries((P.signals as any[]).filter((x) => x.chart).ma
   .zones span { text-align: center; }
   .tl-note span { text-align: left; }
 
-  @media (max-width: 1180px) { .signals { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  @media (max-width: 720px) {
-    .signals { grid-template-columns: minmax(0, 1fr); }
-    .sig { padding: 20px; }
-  }
+  @media (max-width: 480px) { .sig { padding: 18px; } }
 </style>
 
 
