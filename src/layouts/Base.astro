@@ -10,10 +10,10 @@ const path = Astro.url.pathname;
 const nav = [
   { href: '/blog/', label: '博客' },
   { href: '/notes/', label: '知识库' },
-  { href: '/markets/', label: '看板' },
+  { href: '/portfolio/', label: '看板' },
   { href: '/about/', label: '关于' },
 ];
-const here = (href: string) => path.startsWith(href);
+const here = (href: string) => path.startsWith(href) || (href === '/portfolio/' && path.startsWith('/markets/'));
 ---
 <!doctype html>
 <html lang="zh-CN">

@@ -1,0 +1,317 @@
+---
+import Base from '../../layouts/Base.astro';
+import Sparkline from '../../components/Sparkline.astro';
+import P from '../../data/portfolio.json';
+import { quotes, arrow, fmt, isDemo } from '../../lib-markets';
+
+const money = (n: number) => n.toLocaleString('en-US');
+const states: Record<string, { glyph: string; cls: string }> = {
+  buy: { glyph: '●', cls: 'buy' }, half: { glyph: '◐', cls: 'half' }, plan: { glyph: '■', cls: 'plan' }, wait: { glyph: '○', cls: 'wait' },
+};
+const countBy = (s: string) => P.signals.filter((x) => x.state === s).length;
+const summary = [
+  countBy('buy') && `${countBy('buy')} 项可以买入`,
+  countBy('plan') && `${countBy('plan')} 项按计划执行`,
+  countBy('half') && `${countBy('half')} 项半仓`,
+  countBy('wait') && `${countBy('wait')} 项等待`,
+].filter(Boolean).join('，');
+
+// 月度坐标：比特币窗口时间线（2026-01 ~ 2030-01）
+const mi = (ym: string) => { const [y, m] = ym.split('-').map(Number); return (y - 2026) * 12 + (m - 1); };
+const T0 = 0, T1 = 48;
+const pct = (i: number) => ((i - T0) / (T1 - T0)) * 100;
+const nowIdx = mi(P.report.readingsAsOf);
+
+// 示例持仓按大类汇总
+const total = P.example.total;
+const sum = (name: string) => P.example.items.filter((i) => i.asset === name).reduce((a, b) => a + b.amount, 0);
+const holdRows = P.targets.map((t) => {
+  const amt = t.id === 'cn-stock' ? sum('A 股') : t.id === 'cn-bond' ? sum('国内债') : t.id === 'gold' ? sum('黄金') : t.id === 'us-stock' ? sum('美股') : 0;
+  const note = t.id === 'cn-stock' ? '半仓，另一半在货基' : t.id === 'btc' ? '窗口外，先放货基' : '';
+  return { ...t, amt, share: (amt / total) * 100, note };
+});
+const cashAmt = sum('A 股腾出部分') + sum('比特币');
+const domestic = P.targets.filter((t) => t.region === '境内').reduce((a, b) => a + b.pct, 0);
+const overseas = P.targets.filter((t) => t.region === '境外').reduce((a, b) => a + b.pct, 0);
+
+const all = quotes();
+const trackIds = ['sh000300', 'ndx', 'gold', 'btc', 'usdcny', 'us10y'];
+const tiles = trackIds.map((id) => all.find((q) => q.id === id)).filter(Boolean) as ReturnType<typeof quotes>;
+const oneYear = (q: ReturnType<typeof quotes>[number]) => {
+  const pts = q.points.slice(-252);
+  const a = pts[0][1], b = pts[pts.length - 1][1];
+  return q.kind === 'yield' ? { text: `${b >= a ? '+' : '−'}${Math.abs((b - a) * 100).toFixed(0)} bp`, dir: b > a ? 'up' : b < a ? 'down' : 'flat', vals: pts.map((p) => p[1]) }
+    : { text: `${b >= a ? '+' : '−'}${Math.abs(((b - a) / a) * 100).toFixed(1)}%`, dir: b > a ? 'up' : b < a ? 'down' : 'flat', vals: pts.map((p) => p[1]) };
+};
+---
+<Base title="投资看板" description="按资产组合配置研究（Q3）搭建的跟踪看板：信号、资产状态、大盘走势和记录。">
+  <h1 class="page-title">投资看板</h1>
+  <p class="page-lead">依据《{P.report.title}》{P.report.version}。先看今天要不要动，再看为什么，最后看明细。</p>
+  <p class="asof">指标读数日期 {P.report.readingsAsOf}，取自报告 6.4。行情走势数据{isDemo ? '目前是示例数据' : '每天自动更新'}。</p>
+
+  <!-- 1. 今天要不要动 -->
+  <section class="block" aria-labelledby="s1">
+    <div class="head"><h2 id="s1">1 · 今天要不要动</h2><span>每天</span></div>
+    <p class="verdict" id="verdict">本月信号：{summary}。</p>
+    <ul class="cal">
+      {P.calendar.map((c) => (
+        <li data-date={c.date ?? ''}>
+          <span class="cal-date mono">{c.date ? c.date.slice(0, 7) : '每年'}</span>
+          <span class="cal-label">{c.label}<small>{c.detail}</small></span>
+          <span class="cal-left mono" data-left></span>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <!-- 2. 买卖信号 -->
+  <section class="block" aria-labelledby="s2">
+    <div class="head"><h2 id="s2">2 · 买卖信号</h2><span>每月</span></div>
+    <div class="signals">
+      {P.signals.map((s) => (
+        <article class="sig">
+          <header>
+            <span class="asset">{s.asset} <span class="w mono">{s.weight}%</span></span>
+            <span class={`pill ${states[s.state].cls}`}><i aria-hidden="true">{states[s.state].glyph}</i>{s.stateText}</span>
+          </header>
+          <div class="metric">{s.metric}</div>
+          <div class="reading mono">{s.reading}</div>
+
+          {s.gauge?.type === 'range' && (
+            <div class="gauge" role="img" aria-label={`${s.metric} ${s.gauge.value}${s.gauge.unit}，阈值 ${s.gauge.marks.join('、')}`}>
+              <div class="track">
+                <span class="zone z1" style={`width:${s.gauge.marks[0]}%`}></span>
+                <span class="zone z2" style={`left:${s.gauge.marks[0]}%;width:${s.gauge.marks[1] - s.gauge.marks[0]}%`}></span>
+                <span class="zone z3" style={`left:${s.gauge.marks[1]}%;right:0`}></span>
+                <span class="mk" style={`left:${s.gauge.value}%`}></span>
+              </div>
+              <div class="ticks mono">
+                <span style="left:0">0</span>
+                <span style={`left:${s.gauge.marks[0]}%`}>{s.gauge.marks[0]}</span>
+                <span style={`left:${s.gauge.marks[1]}%`}>{s.gauge.marks[1]}</span>
+                <span style="left:100%">100</span>
+              </div>
+              <div class="zones"><span style={`width:${s.gauge.marks[0]}%`}>满仓</span><span style={`width:${s.gauge.marks[1] - s.gauge.marks[0]}%`}>半仓</span><span style={`width:${100 - s.gauge.marks[1]}%`}>空仓</span></div>
+            </div>
+          )}
+          {s.gauge?.type === 'zero' && (
+            <div class="gauge" role="img" aria-label={`${s.metric} ${s.gauge.value}${s.gauge.unit}，零线为分界`}>
+              <div class="track">
+                <span class="zone z-neg" style={`width:${(0 - s.gauge.min) / (s.gauge.max - s.gauge.min) * 100}%`}></span>
+                <span class="zone z-pos" style={`left:${(0 - s.gauge.min) / (s.gauge.max - s.gauge.min) * 100}%;right:0`}></span>
+                <span class="mk" style={`left:${(s.gauge.value - s.gauge.min) / (s.gauge.max - s.gauge.min) * 100}%`}></span>
+              </div>
+              <div class="ticks mono">
+                <span style="left:0">{s.gauge.min}%</span>
+                <span style={`left:${(0 - s.gauge.min) / (s.gauge.max - s.gauge.min) * 100}%`}>0</span>
+                <span style="left:100%">+{s.gauge.max}%</span>
+              </div>
+              <div class="zones"><span style="width:50%">为负：新钱暂缓</span><span style="width:50%">为正：可以买</span></div>
+            </div>
+          )}
+          {s.gauge?.type === 'window' && (
+            <div class="gauge" role="img" aria-label={`减半窗口 ${P.btcWindow.start} 至 ${P.btcWindow.end}，目前在窗口外`}>
+              <div class="track tl">
+                <span class="zone win" style={`left:${pct(mi(P.btcWindow.start))}%;width:${pct(mi(P.btcWindow.end)) - pct(mi(P.btcWindow.start))}%`}></span>
+                <span class="halv" style={`left:${pct(mi(P.btcWindow.halving))}%`}></span>
+                <span class="mk" style={`left:${pct(nowIdx)}%`}></span>
+              </div>
+              <div class="ticks mono">
+                {[2026, 2027, 2028, 2029, 2030].map((y) => <span style={`left:${pct((y - 2026) * 12)}%`}>{y}</span>)}
+              </div>
+              <div class="zones tl-note"><span>窗口 {P.btcWindow.start} ~ {P.btcWindow.end}，竖线为减半（约 {P.btcWindow.halving}）</span></div>
+            </div>
+          )}
+
+          <dl class="rows">
+            <div><dt>规则</dt><dd>{s.rule}</dd></div>
+            <div><dt>动作</dt><dd class="act">{s.action}</dd></div>
+            <div><dt>何时看</dt><dd>{s.check}</dd></div>
+          </dl>
+        </article>
+      ))}
+    </div>
+    <p class="fine">组合层面：每年 12 月再平衡，回到目标比例（A 股按当月档位），新钱先补低配的大类。</p>
+  </section>
+
+  <!-- 3. 资产状态 -->
+  <section class="block" aria-labelledby="s3">
+    <div class="head"><h2 id="s3">3 · 资产状态</h2><span>每月</span></div>
+    <p class="fine tag-example"><b>示例</b> 下表“实际”用的是{P.example.label}，不是真实持仓。真实持仓、当年收益和累计 IRR 涉及隐私，不放在公开网站，计划放进登录后的私密区。</p>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>资产</th><th class="num">目标</th><th class="num">示例金额（元）</th><th class="num">示例占比</th><th class="num">偏离</th><th>说明</th></tr></thead>
+        <tbody>
+          {holdRows.map((r) => (
+            <tr>
+              <td>{r.name}<span class="reg">{r.region}</span></td>
+              <td class="num mono">{r.pct}%</td>
+              <td class="num mono">{r.amt ? money(r.amt) : '—'}</td>
+              <td class="num mono">{r.amt ? r.share.toFixed(0) + '%' : '—'}</td>
+              <td class="num mono">{r.amt ? (r.share - r.pct >= 0 ? '+' : '−') + Math.abs(r.share - r.pct).toFixed(0) : '−' + r.pct}</td>
+              <td class="sm">{r.note}</td>
+            </tr>
+          ))}
+          <tr><td>货币基金</td><td class="num mono">—</td><td class="num mono">{money(cashAmt)}</td><td class="num mono">{(cashAmt / total * 100).toFixed(0)}%</td><td class="num mono">—</td><td class="sm">A 股腾出 + 比特币待投</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="split">
+      <div class="bar" role="img" aria-label={`目标境内 ${domestic}%，境外 ${overseas}%`}><span class="dom" style={`width:${domestic}%`}>境内 {domestic}%</span><span class="ovs" style={`width:${overseas}%`}>境外 {overseas}%</span></div>
+      <span class="fine">目标境内 / 境外占比；境外（美股 + 比特币）上限 25%</span>
+    </div>
+
+    <h3 class="sub">历史区间对照</h3>
+    <p class="fine">{P.history.label}，用来对照当年收益和年内回撤是否在历史范围内。</p>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th></th>{P.history.cols.map((c) => <th class="num">{c}</th>)}</tr></thead>
+        <tbody>{P.history.rows.map((r) => <tr><td>{r[0]}</td>{r.slice(1).map((v) => <td class="num mono">{v}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+    <p class="fine">近 10 年是有利的一段（纳指、黄金、比特币都在牛市）。按不含比特币的约 10%–11% 做规划，比特币收益不计入底线。</p>
+  </section>
+
+  <!-- 4. 大盘走势 -->
+  <section class="block" aria-labelledby="s4">
+    <div class="head"><h2 id="s4">4 · 大盘走势</h2><a href="/markets/">{isDemo ? '示例数据 · ' : ''}全部指标与区间切换 →</a></div>
+    <div class="tiles">
+      {tiles.map((q) => {
+        const y = oneYear(q);
+        return (
+          <a class="tile" href="/markets/">
+            <span class="n">{q.name}</span>
+            <span class="v mono">{q.prefix}{fmt(q.last, q.decimals)}{q.suffix}</span>
+            <span class={`c mono ${y.dir}`}>{y.dir === 'up' ? '▲' : y.dir === 'down' ? '▼' : '–'} {y.text}<span class="muted"> 近 1 年</span></span>
+            <Sparkline values={y.vals} />
+          </a>
+        );
+      })}
+    </div>
+    <p class="fine">报告还要求画“沪深300 与 PB 分位”“纳指与超额 CAPE”“USDT 场外价”。这几条的数据 Yahoo Finance 里没有，需要另接数据源，目前只在第 2 块里显示当前读数。</p>
+  </section>
+
+  <!-- 5. 持仓与记录 -->
+  <section class="block" aria-labelledby="s5">
+    <div class="head"><h2 id="s5">5 · 持仓与记录</h2><span>有交易时</span></div>
+    <h3 class="sub">产品与计划</h3>
+    <p class="fine tag-example"><b>示例</b> {P.example.label}，份额、成本和费用待真实持仓接入。</p>
+    <div class="scroll">
+      <table class="tbl">
+        <thead><tr><th>资产</th><th>产品</th><th class="num">金额（元）</th><th>依据</th></tr></thead>
+        <tbody>{P.example.items.map((i) => <tr><td>{i.asset}</td><td>{i.product}</td><td class="num mono">{money(i.amount)}</td><td class="sm">{i.basis}</td></tr>)}</tbody>
+      </table>
+    </div>
+    <h3 class="sub">决策日志</h3>
+    <ol class="log">
+      {P.decisions.map((d) => <li><time class="mono" datetime={d.date}>{d.date}</time><span>{d.text}</span></li>)}
+    </ol>
+  </section>
+
+  <p class="fine disclaimer">个人记录，不构成投资建议。报告里的结论基于历史回测，存在样本内挑选的成分，详见报告第七章“局限”。</p>
+</Base>
+
+<style>
+  .mono { font-family: var(--mono); }
+  .asof { margin: 10px 0 0; font-size: 13px; color: var(--ink-3); }
+  .fine { margin: 14px 0 0; font-size: 13px; color: var(--ink-3); line-height: 1.7; }
+  .sub { margin: 36px 0 0; font-size: 14px; font-weight: 600; }
+  .tag-example b { color: var(--ink-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; margin-right: 6px; font-weight: 500; }
+  .block { padding-top: 48px; }
+
+  .verdict { margin: 20px 0 0; font-size: 18px; line-height: 1.6; }
+  .cal { list-style: none; margin: 14px 0 0; padding: 0; }
+  .cal li { display: grid; grid-template-columns: 76px 1fr auto; gap: 12px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .cal-date { font-size: 12.5px; color: var(--ink-3); }
+  .cal-label { font-size: 15px; }
+  .cal-label small { display: block; font-size: 13px; color: var(--ink-3); }
+  .cal-left { font-size: 12.5px; color: var(--ink-2); text-align: right; }
+
+  .signals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 44px; margin-top: 28px; }
+  .sig { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .sig header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .asset { font-size: 16px; font-weight: 600; }
+  .w { font-size: 12px; font-weight: 400; color: var(--ink-3); margin-left: 4px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; color: var(--ink-2); white-space: nowrap; }
+  .pill i { font-style: normal; font-size: 10px; }
+  .pill.buy { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .pill.half { color: var(--ink); }
+  .metric { font-size: 13px; color: var(--ink-3); }
+  .reading { font-size: 18px; font-weight: 500; letter-spacing: -0.01em; }
+
+  .gauge { margin-top: 10px; }
+  .track { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: visible; }
+  .zone { position: absolute; top: 0; bottom: 0; }
+  .z1 { left: 0; background: color-mix(in srgb, var(--accent) 38%, var(--line)); border-radius: 4px 0 0 4px; }
+  .z2 { background: color-mix(in srgb, var(--accent) 20%, var(--line)); }
+  .z3 { background: var(--line); border-radius: 0 4px 4px 0; }
+  .z-neg { left: 0; background: var(--line); border-radius: 4px 0 0 4px; }
+  .z-pos { background: color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 0 4px 4px 0; }
+  .win { background: color-mix(in srgb, var(--accent) 32%, var(--line)); border-radius: 4px; }
+  .halv { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-3); }
+  .mk { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--ink); border: 3px solid var(--bg); box-sizing: border-box; }
+  .ticks { position: relative; height: 18px; margin-top: 8px; font-size: 11px; color: var(--ink-3); }
+  .ticks span { position: absolute; transform: translateX(-50%); }
+  .ticks span:first-child { transform: none; }
+  .ticks span:last-child { transform: translateX(-100%); }
+  .zones { display: flex; font-size: 12px; color: var(--ink-3); }
+  .zones span { text-align: center; }
+  .tl-note span { text-align: left; }
+
+  .rows { margin: 10px 0 0; display: flex; flex-direction: column; }
+  .rows div { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.65; }
+  .rows dt { color: var(--ink-3); font-size: 13px; }
+  .rows dd { margin: 0; color: var(--ink-2); }
+  .rows dd.act { color: var(--ink); }
+
+  .scroll { overflow-x: auto; margin-top: 16px; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tbl th { text-align: left; font-weight: 500; font-size: 12.5px; color: var(--ink-3); padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tbl td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl .num { text-align: right; white-space: nowrap; }
+  .tbl .sm { font-size: 13px; color: var(--ink-3); min-width: 160px; }
+  .reg { font-size: 12px; color: var(--ink-3); margin-left: 8px; }
+  .split { margin-top: 20px; }
+  .bar { display: flex; height: 26px; border-radius: 6px; overflow: hidden; font-size: 12.5px; gap: 2px; }
+  .bar span { display: flex; align-items: center; padding-left: 10px; white-space: nowrap; }
+  .bar .dom { background: color-mix(in srgb, var(--accent) 22%, var(--bg)); }
+  .bar .ovs { background: color-mix(in srgb, var(--ink) 10%, var(--bg)); }
+
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px 28px; margin-top: 24px; }
+  .tile { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tile .n { font-size: 13px; color: var(--ink-2); }
+  .tile .v { font-size: 19px; font-weight: 500; letter-spacing: -0.02em; }
+  .tile .c { font-size: 13px; margin-bottom: 8px; }
+  .muted { color: var(--ink-3); font-family: var(--sans); }
+  .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--ink-3); }
+
+  .log { list-style: none; margin: 14px 0 0; padding: 0; }
+  .log li { display: grid; grid-template-columns: 92px 1fr; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; line-height: 1.7; }
+  .log time { font-size: 12.5px; color: var(--ink-3); padding-top: 2px; }
+  .disclaimer { margin-top: 56px; }
+
+  @media (max-width: 700px) {
+    .signals { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cal li { grid-template-columns: 60px 1fr; }
+    .cal-left { grid-column: 2; text-align: left; }
+    .log li { grid-template-columns: 1fr; gap: 0; }
+  }
+</style>
+
+<script>
+  const day = 86400000;
+  const now = Date.now();
+  let next: { label: string; days: number } | null = null;
+  document.querySelectorAll<HTMLElement>('.cal li').forEach((li) => {
+    const d = li.dataset.date;
+    const out = li.querySelector<HTMLElement>('[data-left]')!;
+    if (!d) { out.textContent = ''; return; }
+    const days = Math.ceil((new Date(d + 'T00:00:00').getTime() - now) / day);
+    out.textContent = days > 0 ? `还有 ${days} 天` : '已到期';
+    const label = li.querySelector('.cal-label')!.firstChild!.textContent || '';
+    if (days > 0 && (!next || days < next.days)) next = { label, days };
+  });
+  const v = document.getElementById('verdict');
+  if (v && next) v.textContent = v.textContent + ` 下一个节点：${(next as any).label}，还有 ${(next as any).days} 天。`;
+</script>
