@@ -61,7 +61,15 @@ for (const s of config.series) {
   try {
     let points;
     if (demo) { const [seed, st, dr, vo] = demoParams[s.id]; points = demoSeries(seed, st, dr, vo); }
-    else points = await fromYahoo(s.symbol);
+    else {
+      // Yahoo 偶尔对个别指数只返回很少的点，重试几次
+      let lastErr;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try { points = await fromYahoo(s.symbol); break; }
+        catch (e) { lastErr = e; await new Promise((r) => setTimeout(r, 1500 * attempt)); }
+      }
+      if (!points) throw lastErr;
+    }
     out.series[s.id] = { points };
     console.log(`ok   ${s.id} (${points.length} points)`);
   } catch (e) {

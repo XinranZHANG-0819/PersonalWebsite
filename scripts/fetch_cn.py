@@ -27,14 +27,39 @@ def to_points(s: pd.Series, nd: int):
     return [[d.strftime("%Y-%m-%d"), round(float(v), nd)] for d, v in s.items()]
 
 
-def pb300():
-    WINDOW = 2430  # ≈ 10 年交易日
-    df = ak.stock_index_pb_lg(symbol="沪深300")
+WINDOW = 2430  # ≈ 10 年交易日
+
+
+def _parse_pb(df: pd.DataFrame) -> pd.Series:
+    print("  columns:", list(df.columns), "rows:", len(df), "range:", df.iloc[0, 0], "→", df.iloc[-1, 0])
     date_col = "日期" if "日期" in df.columns else df.columns[0]
-    pb_col = next(c for c in df.columns if "市净率" in c and not any(k in c for k in ("等权", "中位", "分位")))
-    s = pd.Series(df[pb_col].astype(float).values, index=pd.to_datetime(df[date_col])).sort_index().dropna()
-    if len(s) < WINDOW + 60:
-        raise RuntimeError(f"history too short: {len(s)}")
+    cands = [c for c in df.columns if "市净率" in str(c) and not any(k in str(c) for k in ("等权", "中位", "分位", "平均"))]
+    pb_col = cands[0] if cands else df.columns[1]
+    return pd.Series(pd.to_numeric(df[pb_col], errors="coerce").values, index=pd.to_datetime(df[date_col])).sort_index().dropna()
+
+
+def pb300():
+    errs = []
+    s = None
+    # 来源 1：乐咕乐股
+    try:
+        s = _parse_pb(ak.stock_index_pb_lg(symbol="沪深300"))
+        if len(s) < WINDOW + 60:
+            errs.append(f"stock_index_pb_lg history too short: {len(s)}")
+            s = None
+    except Exception as e:
+        errs.append(f"stock_index_pb_lg: {e}")
+    # 来源 2：韭圈儿（funddb），取成立以来的全部历史
+    if s is None:
+        try:
+            s = _parse_pb(ak.index_value_hist_funddb(symbol="沪深300", indicator="市净率", period="成立以来"))
+            if len(s) < WINDOW + 60:
+                errs.append(f"index_value_hist_funddb history too short: {len(s)}")
+                s = None
+        except Exception as e:
+            errs.append(f"index_value_hist_funddb: {e}")
+    if s is None:
+        raise RuntimeError("; ".join(errs))
     pct = s.rolling(WINDOW, min_periods=WINDOW).apply(lambda w: (w <= w[-1]).mean() * 100, raw=True).dropna()
     return to_points(pct, 1)
 
@@ -66,6 +91,7 @@ for key, fn in (("pb300", pb300), ("cn10y", cn10y), ("cbond", cbond)):
         failed += 1
         print(f"FAIL {key}: {e}", file=sys.stderr)
 
+store["series"] = {k: v for k, v in store["series"].items() if k in ("pb300", "cn10y", "cbond")}
 if store["series"]:
     store["updatedAt"] = pd.Timestamp.now(tz="UTC").isoformat()
 out.write_text(json.dumps(store, ensure_ascii=False) + "\n", encoding="utf-8")
