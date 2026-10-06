@@ -150,6 +150,8 @@ def excape_current():
         raise RuntimeError(f"too few points: {len(ex)}")
     if ex.index[-1] < pd.Timestamp.now() - pd.Timedelta(days=120):
         raise RuntimeError(f"stale: last {ex.index[-1].date()}")
+    today = pd.Timestamp.now().normalize()
+    ex.index = pd.DatetimeIndex([min(d, today) for d in ex.index])   # 当月的点按月底标注会晚于今天，压到今天
     return to_points(ex, 2)
 
 
