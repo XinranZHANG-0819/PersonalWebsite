@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin/
+Disallow: /me/
 Disallow: /api/
 
 Sitemap: https://xinran.wiki/sitemap-index.xml

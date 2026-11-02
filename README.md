@@ -28,3 +28,7 @@ npm run dev               # http://localhost:4321
 ## 批注
 
 文章页读者可以选中文字写批注，作者在 `/admin/` 管理。部署前需要在 Cloudflare 里配置数据库、验证码和登录保护，步骤见 [docs/批注功能部署说明.md](docs/批注功能部署说明.md)。
+
+## 私人资产页（/me/）
+
+只有站长能看的资产看板：口令登录，数据存在 Cloudflare D1（不进仓库），页面里现算收益、年化、和沪深300 的对比以及操作建议。需要在 Cloudflare 里设置 Secret `ME_PASSWORD`（可选 `ME_UPLOAD_TOKEN`）后重新部署。设置步骤和数据格式见 [docs/私人资产页说明.md](docs/私人资产页说明.md)。

@@ -1,0 +1,156 @@
+---
+// 私人资产页。页面本身不含任何个人数据：登录后由 /api/me/data 取数据，在浏览器里计算和绘制。
+// 这里只放公开的行情与指标（和「理财罗盘」同源），供收益对比和操作建议使用。
+import Base from '../../layouts/Base.astro';
+import '../../styles/me.css';
+import markets from '../../data/markets.json';
+import indicators from '../../data/indicators.json';
+import portfolio from '../../data/portfolio.json';
+
+type P = [string, number][];
+const S = (markets as any).series, I = (indicators as any).series;
+const pts = (o: any, k: string): P => (o?.[k]?.points || []) as P;
+const last = (p: P) => p[p.length - 1];
+const before = (p: P, d: string) => { let b: [string, number] | null = null; for (const x of p) { if (x[0] <= d) b = x; else break; } return b; };
+const shift = (d: string, days: number) => new Date(Date.parse(d) - days * 864e5).toISOString().slice(0, 10);
+const r2 = (v: number) => Math.round(v * 100) / 100;
+function stats(p: P) {
+  if (!p.length) return null;
+  const L = last(p), m1 = before(p, shift(L[0], 30)), y1 = before(p, shift(L[0], 365));
+  const yr = p.filter((x) => x[0] >= shift(L[0], 365));
+  let peak = -Infinity, mdd = 0;
+  for (const x of yr) { peak = Math.max(peak, x[1]); mdd = Math.min(mdd, x[1] / peak - 1); }
+  const hi = Math.max(...yr.map((x) => x[1]));
+  return { date: L[0], last: r2(L[1]), m1: m1 ? r2((L[1] / m1[1] - 1) * 100) : null, y1: y1 ? r2((L[1] / y1[1] - 1) * 100) : null, offHigh: r2((L[1] / hi - 1) * 100), mdd: r2(mdd * 100) };
+}
+const gold = pts(S, 'gold'), gL = gold.length ? last(gold) : null, g24 = gL ? before(gold, shift(gL[0], 730)) : null;
+const btcSig = (portfolio as any).signals?.find((s: any) => s.id === 'btc')?.chart?.bands || {};
+const lastPt = (k: string) => { const p = pts(I, k); return p.length ? { date: last(p)[0], value: r2(last(p)[1]) } : null; };
+const pub = {
+  date: last(pts(S, 'sh000300'))?.[0],
+  csi300: pts(S, 'sh000300').filter((x) => x[0] >= '2022-12-01'),
+  stats: { csi300: stats(pts(S, 'sh000300')), ndx: stats(pts(S, 'ndx')), gold: stats(gold), btc: stats(pts(S, 'btc')), ief: stats(pts(S, 'ief')), cbond: stats(pts(I, 'cbond')) },
+  pb300: lastPt('pb300'), cn10y: lastPt('cn10y'), excape: lastPt('excape'),
+  us10y: (() => { const p = pts(S, 'us10y'); return p.length ? { date: last(p)[0], value: r2(last(p)[1]) } : null; })(),
+  goldMom24: gL && g24 ? r2((gL[1] / g24[1] - 1) * 100) : null,
+  halvings: btcSig.halvings || [], before: btcSig.before ?? 12, after: btcSig.after ?? 18,
+};
+---
+<Base title="我的资产" description="仅自己可见。" size="wide" noindex>
+  <div slot="hero" class="page-hero">
+    <div class="wrap wide">
+      <div class="in">
+        <div class="hero-top">
+          <span class="eb">Net worth · 我的资产</span>
+          <span class="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>仅自己可见</span>
+          <span class="mono" id="h-asof"></span>
+        </div>
+        <div id="hero-body"><p class="hero-lock">登录后查看。</p></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="card gate" id="gate" hidden aria-live="polite">
+    <div class="eb">Private</div>
+    <h2 id="gate-title">输入口令</h2>
+    <p id="gate-text">这一页只有你能看。口令只在服务器上校验，登录后 7 天内不用再输。</p>
+    <form id="login-form" autocomplete="on">
+      <label class="sr-only" for="pw">口令</label>
+      <input id="pw" name="password" type="password" autocomplete="current-password" required minlength="1" placeholder="口令" />
+      <button class="btn" type="submit" id="login-btn">进入</button>
+      <div class="msg" id="login-msg"></div>
+    </form>
+    <div id="import-box" hidden>
+      <p>还没有数据。选择 Muse 或 Claude 给你的数据文件（.json）导入。</p>
+      <p style="margin-top:14px"><label class="btn" for="file-first">选择数据文件</label></p>
+      <input id="file-first" type="file" accept="application/json,.json" class="sr-only" />
+      <div class="msg" id="first-msg"></div>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+    <div class="stack">
+      <section class="card" id="perf" aria-labelledby="h-perf">
+        <div class="head"><div><div class="eb">Performance</div><h2 id="h-perf">收益走势</h2></div><span class="muted" style="font-size:12.5px">养老金 + 理财账户 · 时间加权</span></div>
+        <div class="perf-grid">
+          <div class="panel">
+            <div class="panel-h"><b>累计</b>
+              <div class="ctl">
+                <div class="seg-ctl" role="group" aria-label="指标" id="mode">
+                  <button type="button" data-mode="ret" aria-pressed="true">收益率</button>
+                  <button type="button" data-mode="val" aria-pressed="false">市值</button>
+                </div>
+                <div class="seg-ctl" role="group" aria-label="时间范围" id="range">
+                  <button type="button" data-range="12" aria-pressed="false">1 年</button>
+                  <button type="button" data-range="36" aria-pressed="false">3 年</button>
+                  <button type="button" data-range="0" aria-pressed="true">全部</button>
+                </div>
+              </div>
+            </div>
+            <div class="readout" id="readout"></div>
+            <div class="chart" id="ch"></div>
+            <div class="note" id="perf-note"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><b>年度</b><div class="keys"><span><i class="kb me"></i>我的</span><span><i class="kb bm"></i>沪深300</span></div></div>
+            <div class="readout" id="yr-readout"></div>
+            <div class="chart" id="ch-yr"></div>
+            <div class="note" id="yr-note"></div>
+          </div>
+        </div>
+        <details class="more"><summary>月度数据</summary>
+          <div class="more-in dwrap"><table class="dtab" id="curve-table"><thead><tr><th>月份</th><th>计入市值（元）</th><th>我的累计</th><th>沪深300 累计</th></tr></thead><tbody></tbody></table></div>
+        </details>
+      </section>
+
+      <section class="card" id="advice" aria-labelledby="h-adv">
+        <div class="head"><div><div class="eb">Advice</div><h2 id="h-adv">操作建议</h2></div><span class="muted" style="font-size:12.5px" id="adv-src"></span></div>
+        <div class="adv-sum" id="adv-sum"></div>
+        <div class="adv-grid" id="adv"></div>
+        <div class="adv-foot" id="adv-foot"></div>
+        <details class="more"><summary>建议是怎么得出的</summary>
+          <div class="more-in"><table class="trades rules">
+            <thead><tr><th>资产</th><th>看什么</th><th>怎么判断</th></tr></thead>
+            <tbody>
+              <tr><td>A 股</td><td>沪深300 PB 10 年分位</td><td>低于 30% 积极买，可超过目标到 35%；30%–70% 分批补到目标；高于 70% 不买</td></tr>
+              <tr><td>国内债</td><td>仓位</td><td>不择时，低于目标就补，一次买入</td></tr>
+              <tr><td>纳指 100</td><td>仓位、距一年高点回撤</td><td>达标后持有；回撤超过 15% 可小额加。超额 CAPE 只作参考，待研究</td></tr>
+              <tr><td>黄金</td><td>仓位、24 个月动量</td><td>不追涨也不抄底；低配就补，超配不加，年底再平衡</td></tr>
+              <tr><td>比特币</td><td>减半窗口</td><td>窗口内买到 5%，窗口外不买</td></tr>
+              <tr><td>美债</td><td>—</td><td>目标 0%，不配置</td></tr>
+              <tr><td>全部</td><td>近 1 月跌幅</td><td>跌超 5% 时，可以加快买入节奏</td></tr>
+            </tbody>
+          </table>
+          <div class="note">目标比例来自 Q3 配置报告，作为参考，不强制。金额按 ¥500 取整：积极买入先买缺口的六成，余下下月再看；可以买就一次补足；现金不够时先满足强度更高的。建议随每天的行情自动更新，仅供参考。</div></div>
+        </details>
+      </section>
+
+      <section class="card" id="acct-invest" aria-label="个人理财账户"></section>
+      <section class="card" id="acct-pension" aria-label="个人养老金"></section>
+
+      <section class="card" id="cash" aria-labelledby="h-cash">
+        <div class="head"><div><div class="eb">Cash flow</div><h2 id="h-cash">现金与支出</h2></div><span class="muted mono" style="font-size:12.5px" id="spend-month"></span></div>
+        <div class="stats" id="cash-stats"></div>
+        <div class="sub-h" style="margin-top:22px">支出分类</div>
+        <ul class="cats" id="cats"></ul>
+        <details class="more" id="cats-more-box"><summary id="cats-more-sum"></summary><div class="more-in"><ul class="cats" id="cats-more"></ul></div></details>
+      </section>
+    </div>
+
+    <div class="toolbar">
+      <span id="tb-info"></span>
+      <span class="tb-acts">
+        <label class="btn ghost" for="file-update">导入新数据</label>
+        <input id="file-update" type="file" accept="application/json,.json" class="sr-only" />
+        <button class="btn ghost" type="button" id="logout">退出</button>
+        <span class="msg" id="tb-msg"></span>
+      </span>
+    </div>
+  </div>
+
+  <script type="application/json" id="me-public" set:html={JSON.stringify(pub)} />
+</Base>
+
+<script>
+  import '../../scripts/me.ts';
+</script>
