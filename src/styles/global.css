@@ -95,6 +95,10 @@ main { flex: 1; padding-bottom: 24px; }
 .site-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding-block: 48px 40px; font-size: 13px; color: var(--ink-3); }
 .site-footer .links { display: flex; gap: 20px; align-items: center; }
 .site-footer a:hover { color: var(--ink); }
+/* 页脚的小锁：私人资产页入口，只有图标，不写文字 */
+.site-footer .me-link { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -6px -6px -6px -2px; border-radius: 999px; opacity: .7; }
+.site-footer .me-link:hover { opacity: 1; }
+.site-footer .me-link svg { width: 13px; height: 13px; }
 .theme-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-right: -8px; background: none; border: 1px solid transparent; color: var(--ink-2); border-radius: 999px; cursor: pointer; }
 .theme-btn:hover { color: var(--ink); border-color: var(--card-line); }
 .theme-btn svg { width: 17px; height: 17px; }
