@@ -1,4 +1,4 @@
-// GET /api/me/data   读取最新一份资产数据（需要登录）
+// GET /api/me/data   读取最新一份资产数据（需要登录，或 ME_UPLOAD_TOKEN）
 // PUT /api/me/data   上传一份新数据（登录后在页面上导入，或用 ME_UPLOAD_TOKEN 自动上传）；保留最近 60 份
 import { fail, sameOrigin } from '../../_lib/util.js';
 import { configured, hasSession, hasUploadToken, meDb, validateData, privJson } from '../../_lib/me.js';
@@ -7,7 +7,8 @@ const MAX_BYTES = 300 * 1024;
 
 export async function onRequestGet({ request, env }) {
   if (!configured(env)) return privJson({ error: 'not configured' }, 503);
-  if (!(await hasSession(request, env))) return privJson({ error: 'login required' }, 401);
+  // 登录后的页面，或带 ME_UPLOAD_TOKEN 的每周自动更新任务（先读最新一份，再改写上传）
+  if (!(await hasSession(request, env)) && !(await hasUploadToken(request, env))) return privJson({ error: 'login required' }, 401);
   const db = await meDb(env);
   const row = await db.prepare('SELECT id, as_of, data, created_at FROM me_snapshots ORDER BY id DESC LIMIT 1').first();
   if (!row) return privJson({ data: null });
