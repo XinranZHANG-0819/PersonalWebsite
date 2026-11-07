@@ -70,6 +70,35 @@ def shift(day, days):
 r2 = lambda v: round(v + 1e-9, 2)
 
 
+def month_return(h):
+    """近 1 月（按你的持仓算）：
+    窗口 = 截至日往前 30 天。窗口里新买的份额，从买入那天的成本算起；更早就持有的份额，从窗口开始那天的净值算起。
+    买入记录在 h['buys']：[日期, 金额] 或 [日期, 金额, 份额]。持有不满 1 月的产品，结果就等于买入以来的收益率。"""
+    end = h.get('navDate')
+    if not end:
+        return None
+    W = shift(end, 30)
+    lots = [l for l in h.get('buys', []) if l[0] > W]
+    cost_lots = sum(l[1] for l in lots)
+    if h.get('code') and h.get('units') is not None:
+        s = nav(h['code'])
+        u_lots = 0.0
+        for l in lots:
+            if len(l) > 2:
+                u_lots += l[2]
+            else:
+                p = first_on_or_after(s, l[0])
+                if p:
+                    u_lots += l[1] / (1 + h.get('fee', 0)) / p[1]
+        start_units = max(h['units'] - u_lots, 0)
+        w = on(s, W)
+        start_val = start_units * w[1] if (start_units > 1e-6 and w) else 0.0
+    else:  # QQQon 这类按估算的：窗口里买入的成本占全部成本时，就是买入以来的收益率
+        start_val = max(h['amount'] - (h['amount'] - h['cost']) - cost_lots, 0) if cost_lots < h['cost'] - 1 else 0.0
+    base = start_val + cost_lots
+    return round((h['amount'] - base) / base * 100, 2) if base > 0 else None
+
+
 def revalue(data, markets):
     notes = []
     for h in data['holdings']:
@@ -85,13 +114,11 @@ def revalue(data, markets):
                     notes.append(f"{h['name']}：按 {p[0]} 净值 {p[1]} 确认份额 {h['units']}")
                 else:
                     notes.append(f"{h['name']}：申购净值还没出，先按成本计")
-                    h.update(amount=h['cost'], pnl=0.0, ret=0.0)
+                    h.update(amount=h['cost'], pnl=0.0, ret=0.0, m1=0.0)
                     continue
             d, v = s[-1]
             h['amount'] = r2(h['units'] * v)
             h['navDate'] = d
-            m = on(s, shift(d, 30))
-            h['m1'] = round((v / m[1] - 1) * 100, 2) if m else None
         elif h.get('proxy', {}).get('type') == 'ndx×usdcny':  # QQQon：没有净值源，按纳指100 × 汇率估算
             px = h['proxy']
             S = markets['series']
@@ -99,13 +126,13 @@ def revalue(data, markets):
             n0, f0 = on(S['ndx']['points'], px['date']), on(S['usdcny']['points'], px['date'])
             nm, fm = on(S['ndx']['points'], shift(n1[0], 30)), on(S['usdcny']['points'], shift(n1[0], 30))
             h['amount'] = r2(px['base'] * (n1[1] / n0[1]) * (f1[1] / f0[1]))
-            h['m1'] = round(((n1[1] / nm[1]) * (f1[1] / fm[1]) - 1) * 100, 2)
             h['navDate'] = n1[0]
             px.update(base=h['amount'], date=n1[0])
         else:
             continue
         h['pnl'] = r2(h['amount'] - h['cost'])
         h['ret'] = round(h['pnl'] / h['cost'] * 100, 2) if h['cost'] else None
+        h['m1'] = month_return(h)
 
     # 恒等式：各产品收益 + extra = 账户总值 − 计入的资金（flows 之和）。差额记到标了 plug 的那一行（手续费、利息等）
     totals = {}

@@ -583,7 +583,7 @@ function renderAccount(key: string, C: any, A: any) {
   const keys = el('div', 'gkeys');
   const kk = (cls: string, t: string) => { const s = el('span'); s.appendChild(el('i', cls)); s.appendChild(document.createTextNode(t)); keys.appendChild(s); };
   kk('k1', withTarget ? '当前占比（占账户总值）' : '占账户总值'); if (withTarget) kk('k2', '目标'); kk('k3', '现金');
-  keys.appendChild(el('span', null, '产品收益率 = 持有收益 ÷ 成本；账户收益看右上角'));
+  keys.appendChild(el('span', null, '产品收益率 = 持有收益 ÷ 成本；近 1 月按你的持仓算，买入不满 1 月的就是买入以来；账户收益看右上角'));
   box.appendChild(keys);
   // 折叠：历年收益与交易记录
   const trades = a.trades || [];
