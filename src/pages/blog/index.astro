@@ -1,12 +1,10 @@
 ---
 import { getCollection } from 'astro:content';
 import Base from '../../layouts/Base.astro';
-import PostRow from '../../components/PostRow.astro';
 const posts = (await getCollection('blog', (p) => !p.data.draft)).sort((a, b) => +b.data.date - +a.data.date);
 const byYear = new Map<number, typeof posts>();
 for (const p of posts) { const y = p.data.date.getFullYear(); byYear.set(y, [...(byYear.get(y) ?? []), p]); }
 
-// 全部标签（按出现次数排），和一份纯文本搜索索引（标题、摘要、标签、正文）
 function plainText(md: string) {
   return md
     .replace(/```[\s\S]*?```/g, ' ')
@@ -19,7 +17,7 @@ function plainText(md: string) {
 }
 const tagCount = new Map<string, number>();
 for (const p of posts) for (const t of p.data.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
-const allTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh')).map(([t]) => t);
+const allTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh'));
 const index = posts.map((p) => ({
   id: p.id,
   title: p.data.title,
@@ -29,48 +27,135 @@ const index = posts.map((p) => ({
 }));
 const indexJson = JSON.stringify(index).replace(/</g, '\\u003c');
 ---
-<Base title="文章" description="按时间排列的文章。">
-  <div slot="hero" class="page-hero"><div class="wrap"><h1 class="page-title">文章</h1><p class="page-lead">投资、阅读与工作中的思考，按时间排列。</p></div></div>
+<Base title="文章" description="按时间与主题分类的文章与研究笔记。">
+  <div slot="hero" class="page-hero">
+    <div class="wrap">
+      <h1 class="page-title">文章</h1>
+      <p class="page-lead">投资、阅读与工作中的思考，按时间与标签归档。</p>
+    </div>
+  </div>
+
   {posts.length > 0 && (
-    <div class="search-bar">
-      <input id="q" type="search" placeholder="搜标题、摘要、关键词、正文…" autocomplete="off" aria-label="搜索文章" />
-      <div class="filters" role="group" aria-label="按关键词筛选">
-        <button type="button" data-tag="" class="on">全部</button>
-        {allTags.map((t) => <button type="button" data-tag={t}>{t}</button>)}
+    <div class="blog-filter">
+      <div class="blog-search-wrap">
+        <input id="q" type="search" placeholder="搜索标题、摘要、标签或正文…（按 / 聚焦）" autocomplete="off" aria-label="搜索文章" />
+        <button type="button" id="q-clear" class="q-clear" style="display:none" aria-label="清空搜索">×</button>
+      </div>
+      <div class="blog-tags" role="group" aria-label="按标签筛选">
+        <button type="button" data-tag="" class="on">全部 <span>{posts.length}</span></button>
+        {allTags.map(([t, c]) => <button type="button" data-tag={t}>{t} <span>{c}</span></button>)}
       </div>
     </div>
   )}
+
   <script type="application/json" id="post-index" set:html={indexJson}></script>
   <p id="no-result" class="empty" style="display:none">没有找到相关文章。</p>
   {posts.length === 0 && <p class="empty">还没有文章。</p>}
+
   {[...byYear].map(([year, list]) => (
     <section class="block year-sec" style="padding-top: 40px">
       <div class="head"><h2>{year}</h2><span class="yr-count" data-total={list.length}>{list.length} 篇</span></div>
-      {list.map((p) => (
-        <div class="post-item" data-id={p.id}>
-          <PostRow href={`/blog/${p.id}/`} title={p.data.title} date={p.data.date} />
-        </div>
-      ))}
+      {list.map((p) => {
+        const d = p.data.date.toISOString().slice(0, 10);
+        return (
+          <div class="post-item" data-id={p.id}>
+            <a class="post-row blog-row" href={`/blog/${p.id}/`}>
+              <span class="blog-row-main">
+                <span class="t">{p.data.title}</span>
+                {p.data.tags.length > 0 && (
+                  <span class="row-tags">
+                    {p.data.tags.map((t) => <span class="row-tag">{t}</span>)}
+                  </span>
+                )}
+              </span>
+              <time class="d" datetime={d}>{d}</time>
+            </a>
+          </div>
+        );
+      })}
     </section>
   ))}
 </Base>
 
 <style is:global>
-  .search-bar { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
-  .search-bar input[type="search"] { font: inherit; font-size: 15px; color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--card-line); border-radius: 10px; padding: 9px 12px; width: 100%; }
-  .search-bar input[type="search"]:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
-  .search-bar .filters { display: flex; flex-wrap: wrap; gap: 6px; }
-  .search-bar .filters button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid var(--card-line); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
-  .search-bar .filters button.on { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .blog-filter { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
+  .blog-search-wrap { position: relative; }
+  .blog-search-wrap input[type="search"] {
+    font: inherit;
+    font-size: 14.5px;
+    color: var(--ink);
+    background: var(--card);
+    border: 1px solid var(--card-line);
+    border-radius: 12px;
+    padding: 10px 36px 10px 14px;
+    width: 100%;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .blog-search-wrap input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .q-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    color: var(--ink-2);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .blog-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .blog-tags button {
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--ink-2);
+    background: none;
+    border: 1px solid var(--card-line);
+    border-radius: 999px;
+    padding: 4px 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .blog-tags button span { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+  .blog-tags button:hover { color: var(--ink); border-color: var(--accent); }
+  .blog-tags button.on {
+    color: var(--ink);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .blog-tags button.on span { color: var(--link); }
+  .blog-row-main { display: inline-flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+  .row-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .row-tag {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 8px;
+    line-height: 1.6;
+  }
 </style>
 
 <script>
   const idx = JSON.parse(document.getElementById('post-index')!.textContent || '[]') as { id: string; title: string; desc: string; tags: string[]; text: string }[];
   const byId = new Map(idx.map((p) => [p.id, p]));
   const q = document.getElementById('q') as HTMLInputElement | null;
+  const qClear = document.getElementById('q-clear') as HTMLButtonElement | null;
   let activeTag = '';
+
   function apply() {
     const query = (q?.value || '').trim().toLowerCase();
+    if (qClear) qClear.style.display = query ? '' : 'none';
     let visible = 0;
     for (const item of document.querySelectorAll<HTMLElement>('.post-item')) {
       const p = byId.get(item.dataset.id || '');
@@ -88,11 +173,19 @@ const indexJson = JSON.stringify(index).replace(/</g, '\\u003c');
     }
     document.getElementById('no-result')!.style.display = visible ? 'none' : '';
   }
+
   q?.addEventListener('input', apply);
-  document.querySelectorAll<HTMLButtonElement>('.search-bar .filters button').forEach((b) => {
+  qClear?.addEventListener('click', () => { if (q) { q.value = ''; q.focus(); apply(); } });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      q?.focus();
+    }
+  });
+  document.querySelectorAll<HTMLButtonElement>('.blog-tags button').forEach((b) => {
     b.addEventListener('click', () => {
       activeTag = b.dataset.tag === activeTag ? '' : (b.dataset.tag || '');
-      document.querySelectorAll<HTMLButtonElement>('.search-bar .filters button').forEach((o) => o.classList.toggle('on', (o.dataset.tag || '') === activeTag));
+      document.querySelectorAll<HTMLButtonElement>('.blog-tags button').forEach((o) => o.classList.toggle('on', (o.dataset.tag || '') === activeTag));
       apply();
     });
   });
