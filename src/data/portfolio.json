@@ -2,7 +2,7 @@
   "report": {
     "title": "资产组合配置研究（Q3）",
     "version": "第三稿（2026-10-06）",
-    "readingsAsOf": "2026-09"
+    "readingsAsOf": "2026-11"
   },
   "signals": [
     {
@@ -10,20 +10,20 @@
       "asset": "A 股",
       "weight": 30,
       "metric": "PB 的 10 年滚动分位",
-      "reading": "38%",
+      "reading": "28%",
       "gauge": {
         "type": "range",
         "min": 0,
         "max": 100,
-        "value": 38,
+        "value": 28.3,
         "marks": [
           30,
           70
         ],
         "unit": "%"
       },
-      "state": "half",
-      "stateText": "半仓",
+      "state": "buy",
+      "stateText": "买入",
       "chart": {
         "main": "sh000300",
         "indicator": {
@@ -53,16 +53,16 @@
       "asset": "美股",
       "weight": 20,
       "metric": "超额 CAPE 收益率",
-      "reading": "+1.07%",
+      "reading": "-0.13%",
       "gauge": {
         "type": "zero",
         "min": -3,
         "max": 3,
-        "value": 0.6,
+        "value": -0.1,
         "unit": "%"
       },
-      "state": "buy",
-      "stateText": "购入",
+      "state": "wait",
+      "stateText": "等待",
       "chart": {
         "main": "ndx",
         "indicator": {
@@ -148,7 +148,7 @@
       "asset": "黄金",
       "weight": 15,
       "metric": "24 个月动量",
-      "reading": "+52.8%",
+      "reading": "+39.4%",
       "gauge": null,
       "state": "buy",
       "stateText": "购入",

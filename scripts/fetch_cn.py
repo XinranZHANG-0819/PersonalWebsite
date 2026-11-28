@@ -3,7 +3,7 @@
 - pb300：沪深300 市净率的 10 年滚动分位（AkShare / 乐咕乐股）
 - cn10y：中国国债 10 年期收益率（AkShare / 东方财富）
 - cbond：中债新综合指数（财富指数，AkShare / 中央结算公司）
-- excape：超额 CAPE 收益率估算（Shiller 公开数据）
+- excape：超额 CAPE 收益率，TIPS 版 ECY = 1/CAPE − 10 年 TIPS 收益率（FRED DFII10）
 
 每个序列单独抓取，失败时保留它上一次的数据，不影响其他序列。
 """
@@ -59,10 +59,17 @@ def pb300():
 
 
 def cn10y():
-    df = ak.bond_zh_us_rate(start_date="20150101")
-    s = pd.Series(df["中国国债收益率10年"].astype(float).values, index=pd.to_datetime(df["日期"])).sort_index().dropna()
+    """中国国债 10 年期收益率。AkShare 1.20.41+ 把 bond_zh_us_rate 改名为
+    bond_zh_us_yield_em，旧接口已失效（2026-11-12 起停更就是这个原因）。"""
+    df = ak.bond_zh_us_yield_em()
+    print("  columns:", list(df.columns), "rows:", len(df), "range:", df.iloc[0, 0], "→", df.iloc[-1, 0])
+    col = next(c for c in df.columns if "10年" in str(c) and "国债" in str(c))
+    date_col = "日期" if "日期" in df.columns else df.columns[0]
+    s = pd.Series(pd.to_numeric(df[col], errors="coerce").values, index=pd.to_datetime(df[date_col])).sort_index().dropna()
     if len(s) < 100:
         raise RuntimeError(f"too few points: {len(s)}")
+    if s.index[-1] < pd.Timestamp.now() - pd.Timedelta(days=10):
+        raise RuntimeError(f"stale: last {s.index[-1].date()}")
     return to_points(s, 4)
 
 
@@ -75,38 +82,6 @@ def cbond():
     return to_points(s, 4)
 
 
-def excape_shiller():
-    """超额 CAPE 收益率（估算）= 1/CAPE − （10 年美债收益率 − 过去 10 年平均通胀）。
-    数据：Shiller 公开数据表（标普 500 的 CAPE、CPI、10 年国债利率），月度。"""
-    import io, urllib.request
-    url = "http://www.econ.yale.edu/~shiller/data/ie_data.xls"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    raw = urllib.request.urlopen(req, timeout=60).read()
-    df = pd.read_excel(io.BytesIO(raw), sheet_name="Data", skiprows=7)
-    print("  shiller columns:", list(df.columns)[:14], "rows:", len(df))
-    date_col = df.columns[0]
-    cape_col = next(c for c in df.columns if str(c).strip().upper().startswith("CAPE"))
-    cpi_col = next(c for c in df.columns if str(c).strip().upper() == "CPI")
-    rate_col = next(c for c in df.columns if "Rate" in str(c) and "GS10" in str(c)) if any("GS10" in str(c) for c in df.columns) else df.columns[6]
-    d = df[[date_col, cape_col, cpi_col, rate_col]].copy()
-    d.columns = ["date", "cape", "cpi", "rate"]
-    d = d[pd.to_numeric(d["date"], errors="coerce").notna()]
-    d["date"] = d["date"].astype(float)
-    # 日期格式 YYYY.MM（10 月写作 YYYY.1）
-    yr = d["date"].astype(int)
-    mo = ((d["date"] - yr) * 100).round().astype(int).clip(1, 12)
-    d.index = pd.to_datetime(dict(year=yr, month=mo, day=1)) + pd.offsets.MonthEnd(0)
-    for c in ("cape", "cpi", "rate"):
-        d[c] = pd.to_numeric(d[c], errors="coerce")
-    d = d.dropna(subset=["cape", "cpi", "rate"])
-    infl = ((d["cpi"] / d["cpi"].shift(120)) ** (1 / 10) - 1) * 100
-    ex = (100 / d["cape"]) - (d["rate"] - infl)
-    ex = ex.dropna()
-    if len(ex) < 60:
-        raise RuntimeError(f"too few points: {len(ex)}")
-    return to_points(ex, 2)
-
-
 def _http(url: str) -> bytes:
     import urllib.request
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (personal-website data fetcher)"})
@@ -115,70 +90,6 @@ def _http(url: str) -> bytes:
 
 def _month_end(idx) -> pd.DatetimeIndex:
     return pd.DatetimeIndex(pd.to_datetime(idx)) + pd.offsets.MonthEnd(0)
-
-
-def _bls_cpi() -> pd.Series:
-    """CPI-U（BLS，系列 CUUR0000SA0，月度，未季调）。
-
-    2026-10 之前 excape 用的是 FRED 的 CPIAUCSL，但 FRED 的 fredgraph.csv
-    现对自动抓取返回 403，excape_current 因此一直失败、回落到 2023-09 就
-    停更的 Shiller 旧表——这就是曲线“消失”的根因。BLS 公开 API 无需 key
-    即可取，单次查询最多约 10 年，所以按 10 年窗口分段取再合并。
-    用未季调 CPI 算 10 年平均通胀是合理的：分子分母是同一月份、相隔
-    10 年，季节因素基本抵消。
-    """
-    import json as _json
-    parts = []
-    now_y = pd.Timestamp.now().year
-    for a, b in [(2006, 2015), (2016, 2025), (2026, now_y)]:
-        if a > now_y:
-            continue
-        raw = _http(f"https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0?startyear={a}&endyear={b}")
-        data = _json.loads(raw)
-        if data.get("status") != "REQUEST_SUCCEEDED":
-            raise RuntimeError(f"BLS {a}-{b}: {data.get('status')} {data.get('message')}")
-        rows = data["Results"]["series"][0]["data"]
-        vals, dates = [], []
-        for r in rows:
-            if not r["period"].startswith("M"):
-                continue
-            vals.append(float(r["value"]) if r["value"] != "-" else float("nan"))
-            dates.append(f"{r['year']}-{r['period'][1:]}-01")
-        parts.append(pd.Series(vals, index=_month_end(dates)))
-    ser = pd.concat(parts).sort_index()
-    ser = ser[~ser.index.duplicated(keep="last")].dropna()
-    if len(ser) < 60:
-        raise RuntimeError(f"BLS CPI too few points: {len(ser)}")
-    return ser
-
-
-def _gs10_month_end() -> pd.Series:
-    """10 年美债收益率的月末值。首选本仓库已有的 markets.json（雅虎 ^TNX，
-    工作流里 fetch-data.mjs 先跑、比本脚本新），缺失或过旧时才直接问雅虎。"""
-    mpath = root / "src/data/markets.json"
-    try:
-        m = json.loads(mpath.read_text(encoding="utf-8"))
-        pts = m["series"]["us10y"]["points"]
-        me = {}
-        for d, v in pts:
-            me[d[:7]] = float(v)
-        idx = _month_end([f"{k}-01" for k in me])
-        ser = pd.Series(list(me.values()), index=idx).sort_index()
-        if len(ser) >= 60 and ser.index[-1] >= pd.Timestamp.now() - pd.Timedelta(days=120):
-            return ser
-    except Exception as e:
-        print(f"  gs10 from markets.json unavailable: {e}", file=sys.stderr)
-    import json as _json
-    raw = _http("https://query1.finance.yahoo.com/v8/finance/chart/%5ETNX?range=10y&interval=1d")
-    r = _json.loads(raw)["chart"]["result"][0]
-    dates = [pd.Timestamp(ts, unit="s").strftime("%Y-%m-%d") for ts in r["timestamp"]]
-    closes = r["indicators"]["quote"][0]["close"]
-    me = {}
-    for d, v in zip(dates, closes):
-        if v is not None:
-            me[d[:7]] = float(v)
-    idx = _month_end([f"{k}-01" for k in me])
-    return pd.Series(list(me.values()), index=idx).sort_index()
 
 
 def _multpl_cape() -> pd.Series:
@@ -194,19 +105,32 @@ def _multpl_cape() -> pd.Series:
     return ser[~ser.index.duplicated(keep="last")]
 
 
+def _dfii10_me() -> pd.Series:
+    """10 年 TIPS 收益率（FRED DFII10，日度）取月末值。
+    fredgraph.csv 需带浏览器 User-Agent，否则不给数据。"""
+    import io
+    raw = _http("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFII10")
+    df = pd.read_csv(io.StringIO(raw.decode("utf-8", "ignore")))
+    date_col, val_col = df.columns[0], df.columns[1]
+    s = pd.Series(pd.to_numeric(df[val_col], errors="coerce").values,
+                  index=pd.to_datetime(df[date_col])).sort_index().dropna()
+    if len(s) < 60:
+        raise RuntimeError(f"DFII10 too few points: {len(s)}")
+    me = s.resample("ME").last().dropna()
+    me.index = _month_end(me.index)
+    return me
+
+
 def excape_current():
-    """超额 CAPE 收益率（估算）= 1/CAPE − （10 年美债收益率 − 过去 10 年平均通胀）。
-    公式不变，数据源换了：CAPE 用 multpl（标普 500 席勒市盈率，月度，实时
-    更新）；10 年美债收益率用雅虎 ^TNX 月末值（即 markets.json 的 us10y）；
-    CPI 用 BLS 的 CPI-U。原 FRED 路径已失效，见 _bls_cpi 的注释。"""
+    """超额 CAPE 收益率（TIPS 版 ECY）= 1/CAPE − 10 年 TIPS 收益率。
+    CAPE 用 multpl（标普 500 席勒市盈率，月度，实时更新）；TIPS 收益率
+    用 FRED DFII10 月末值。2026-11-26 起替代席勒原版。"""
     cape = _multpl_cape()
-    gs10 = _gs10_month_end()
-    cpi = _bls_cpi()
-    print("  cape", cape.index[-1].date(), cape.iloc[-1], "| gs10", gs10.index[-1].date(), gs10.iloc[-1], "| cpi", cpi.index[-1].date(), cpi.iloc[-1])
-    df = pd.concat([cape.rename("cape"), gs10.rename("gs10"), cpi.rename("cpi")], axis=1).sort_index()
-    df[["gs10", "cpi"]] = df[["gs10", "cpi"]].ffill(limit=2)   # 利率、CPI 公布略晚，向前补最多 2 个月
-    infl = ((df["cpi"] / df["cpi"].shift(120)) ** (1 / 10) - 1) * 100
-    ex = ((100 / df["cape"]) - (df["gs10"] - infl)).dropna()
+    tips = _dfii10_me()
+    print("  cape", cape.index[-1].date(), cape.iloc[-1], "| dfii10", tips.index[-1].date(), tips.iloc[-1])
+    df = pd.concat([cape.rename("cape"), tips.rename("tips")], axis=1).sort_index()
+    df["tips"] = df["tips"].ffill(limit=1)   # TIPS 公布略晚，向前补最多 1 个月
+    ex = ((100 / df["cape"]) - df["tips"]).dropna()
     if len(ex) < 60:
         raise RuntimeError(f"too few points: {len(ex)}")
     if ex.index[-1] < pd.Timestamp.now() - pd.Timedelta(days=120):
@@ -217,24 +141,34 @@ def excape_current():
 
 
 def excape():
-    # 注意：不要再把 excape_shiller 当兜底。耶鲁 Shiller 表最后一次更新是
+    # 注意：不要再把旧的席勒版 excape 当兜底。耶鲁 Shiller 表最后一次更新是
     # 2023-09，兜底会把序列悄悄倒回 2023 年，页面默认 1 年视图里这条线
     # 因超出窗口被裁掉、看起来就是“没有了”，而其他序列照常更新、毫无报错。
     # 新路径失败时宁可保留上一次的近期数据（脚本主循环的失败保留逻辑），
-    # 并在日志里留下 FAIL excape，便于发现。
+    # 并在日志里留下 FAIL excape，便于发现。multpl 在个别网络环境下连不上
+    # 时同样如此（fail-soft，不静默写旧数据当新数据）。
     return excape_current()
 
 
 def patch_markets():
-    """沪深300、创业板指、上证指数：Yahoo 偶尔只返回很少的点，用新浪的日线覆盖，保证 A 股指数是完整的。"""
+    """沪深300、创业板指、上证指数：Yahoo 偶尔只返回很少的点，用新浪的日线覆盖，保证 A 股指数是完整的。
+    AkShare 1.20.44+ 把 stock_zh_index_daily 改名为 index_zh_daily_sina，旧接口已失效
+    （2026-11-13 起停更就是这个原因）。新数据与旧序列按日期合并，历史不丢失。"""
     mpath = root / "src/data/markets.json"
     m = json.loads(mpath.read_text(encoding="utf-8"))
     changed = 0
     for sid, sym in (("sh000300", "sh000300"), ("sz399006", "sz399006"), ("sh000001", "sh000001")):
         try:
-            df = ak.stock_zh_index_daily(symbol=sym)
+            df = ak.index_zh_daily_sina(symbol=sym)
             ser = pd.Series(df["close"].astype(float).values, index=pd.to_datetime(df["date"])).sort_index().dropna()
-            pts = to_points(ser, 4)
+            if ser.index[-1] < pd.Timestamp.now() - pd.Timedelta(days=10):
+                raise RuntimeError(f"stale: last {ser.index[-1].date()}")
+            old = {d: float(v) for d, v in m["series"][sid]["points"]}
+            merged = {**old, **{d.strftime("%Y-%m-%d"): float(v) for d, v in ser.items()}}
+            mser = pd.Series(merged)
+            mser.index = pd.to_datetime(mser.index)
+            mser = mser.sort_index()
+            pts = to_points(mser, 4)
             if len(pts) < 200:
                 raise RuntimeError(f"too few points: {len(pts)}")
             m["series"][sid] = {"points": pts}
@@ -244,6 +178,77 @@ def patch_markets():
             print(f"FAIL {sid} via sina: {e}", file=sys.stderr)
     if changed:
         mpath.write_text(json.dumps(m, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
+def _series_last(points):
+    """取序列最后一个 [date, value]，没有则返回 None。"""
+    if not points:
+        return None
+    d, v = points[-1]
+    return d, float(v)
+
+
+def _mom24(points):
+    """24 个月动量：最后一个点对比 730 天前最近一个点的涨幅（%），
+    与页面 momentum() 口径一致（730 天回溯，取回溯日当天或之前最近一个点）。"""
+    if not points or len(points) < 2:
+        return None
+    last_d, last_v = points[-1][0], float(points[-1][1])
+    t = pd.Timestamp(last_d) - pd.Timedelta(days=730)
+    base = None
+    for d, v in points:
+        if pd.Timestamp(d) <= t:
+            base = float(v)
+        else:
+            break
+    if base is None or base == 0:
+        return None
+    return (last_v / base - 1) * 100
+
+
+def refresh_portfolio():
+    """按最新序列刷新 portfolio.json 的读数/仪表/状态，机器人每次运行都跑。
+    读数来源：PB 分位取 indicators.json 的 pb300，超额 CAPE（TIPS 版）取
+    excape，黄金 24 个月动量由 markets.json 的 gold 序列算出。只有三项
+    都刷新成功时才推进 readingsAsOf，避免新日期配旧读数。"""
+    ppath = root / "src/data/portfolio.json"
+    p = json.loads(ppath.read_text(encoding="utf-8"))
+    ind = json.loads((root / "src/data/indicators.json").read_text(encoding="utf-8"))["series"]
+    mk = json.loads((root / "src/data/markets.json").read_text(encoding="utf-8"))["series"]
+    sig = {s["id"]: s for s in p["signals"]}
+    done, notes = [], []
+    pb = _series_last(ind.get("pb300", {}).get("points", []))
+    if pb is not None:
+        d, v = pb
+        s = sig["cn-stock"]
+        s["reading"] = f"{v:.0f}%"
+        s["gauge"]["value"] = round(v, 1)
+        s["state"], s["stateText"] = ("buy", "买入") if v < 30 else (("half", "半仓") if v <= 70 else ("wait", "等待"))
+        done.append("pb300")
+        notes.append(f"pb300 {v:.1f}% ({d})")
+    ec = _series_last(ind.get("excape", {}).get("points", []))
+    if ec is not None:
+        d, v = ec
+        s = sig["us-stock"]
+        s["reading"] = f"{v:+.2f}%"
+        s["gauge"]["value"] = max(-3, min(3, round(v, 1)))
+        s["state"], s["stateText"] = ("buy", "购入") if v > 0 else ("wait", "等待")
+        done.append("excape")
+        notes.append(f"excape {v:+.2f}% ({d})")
+    mom = _mom24(mk.get("gold", {}).get("points", []))
+    if mom is not None:
+        s = sig["gold"]
+        s["reading"] = f"{mom:+.1f}%"
+        s["state"], s["stateText"] = ("buy", "购入") if mom > 0 else ("wait", "等待")
+        done.append("mom24")
+        notes.append(f"gold mom24 {mom:+.1f}%")
+    if len(done) == 3:
+        p["report"]["readingsAsOf"] = pd.Timestamp.now().strftime("%Y-%m")
+        ppath.write_text(json.dumps(p, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print("ok   refresh_portfolio:", "; ".join(notes))
+    else:
+        missing = [k for k in ("pb300", "excape", "mom24") if k not in done]
+        print(f"FAIL refresh_portfolio: missing {missing}, portfolio.json untouched", file=sys.stderr)
 
 
 try:
@@ -265,4 +270,10 @@ store["series"] = {k: v for k, v in store["series"].items() if k in ("pb300", "c
 if store["series"]:
     store["updatedAt"] = pd.Timestamp.now(tz="UTC").isoformat()
 out.write_text(json.dumps(store, ensure_ascii=False) + "\n", encoding="utf-8")
+
+try:
+    refresh_portfolio()
+except Exception as e:
+    print(f"FAIL refresh_portfolio: {e}", file=sys.stderr)
+
 sys.exit(0)
