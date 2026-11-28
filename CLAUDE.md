@@ -65,3 +65,10 @@ Xinran 的个人网站 `https://xinran.wiki`：文章（Markdown，读者可批�
 - 超额 CAPE 口径已定：TIPS 版 ECY，2026-11-26 起生效，仅作参考（已解决）。
 - 美股检查日程目前从页面上拿掉了，CAPE 定了再加回。
 - 线上 `/me/` 的口令是否换成更强的：由 Xinran 决定，Muse 在 Cloudflare 里改。
+
+## 七、站内写文章（博客编辑器）
+- 写文章页：`/admin/write/`，和 `/admin/` 批注管理一样走 Cloudflare Access 登录（邮箱验证码）；未登录时页面提示去登录页。表单有主题（必填）、摘要、日期（默认今天）、关键词（逗号分隔）、文件名（按日期-标题自动建议，可改）、正文 Markdown；可保存为草稿（`draft: true`，不显示）或发布；已有文章列表可点开编辑、删除（二次确认）；正文框支持编辑/预览切换（简易 Markdown 渲染，仅供参考）和图片上传（存到 `public/images/`，自动在光标处插入 `![说明](/images/文件名)`）。
+- 保存接口：`functions/api/admin/blog.js`（`GET` 列表/单篇、`POST`/`PUT` 新建或更新、`DELETE` 删除、`POST` 带 `imageName`/`dataBase64` 时上传图片）。同样用 `requireAdmin` 校验登录，写入操作校验 `sameOrigin`。文章以 Markdown 文件形式经 GitHub Contents API 写到 `src/content/blog/<slug>.md`（更新时服务端先取当前 SHA），提交信息如 `blog: 保存《标题》（站内编辑器）`。正文按 UTF-8 做 base64；frontmatter 的标题/摘要用双引号转义。
+- 环境变量：`GITHUB_TOKEN`（细粒度 PAT，只需 Contents 读写 PersonalWebsite 一个仓库，有效期一年，到期需轮换；未配置时接口报 503「未配置 GITHUB_TOKEN」，写文章页会明确提示）；`GITHUB_REPO`（默认 `XinranZHANG-0819/PersonalWebsite`）、`GITHUB_BRANCH`（默认 `claude/nifty-einstein-12pt6v`）。改 Cloudflare 的变量后要重新部署才生效。
+- 发布节奏：保存后即提交到 GitHub，下次工作日 06:10 / 17:10 自动重部署后上线，或直接 wrangler 部署。注意：Cloudflare Git 集成实际不产生部署（生产部署全是定时任务直传的 ad_hoc），推送后仍需直传或等定时任务部署。
+- 博客列表 `/blog/`：客户端过滤，不改按年分组。标签 chips（按出现次数排，单选、再点取消）和搜索框（标题、摘要、标签、正文），构建时把文章纯文本嵌成 JSON 索引；无结果时显示「没有找到相关文章」。

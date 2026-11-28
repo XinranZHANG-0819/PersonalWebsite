@@ -1,0 +1,292 @@
+---
+import Base from '../../layouts/Base.astro';
+---
+<Base title="写文章" size="wide" noindex>
+  <div slot="hero" class="page-hero"><div class="wrap wide"><h1 class="page-title">写文章</h1><p class="page-lead">登录后直接在这里写，保存即提交到 GitHub；下次工作日 06:10 / 17:10 自动重部署后上线。草稿不会出现在网站上。</p></div></div>
+  <p id="token-note" class="state" style="display:none"></p>
+  <section class="block" style="padding-top: 28px">
+    <form id="form" onsubmit="return false">
+      <div class="grid">
+        <label class="field span2">主题（必填）
+          <input id="f-title" type="text" maxlength="200" placeholder="比如：11 月中债利率点评" autocomplete="off" />
+        </label>
+        <label class="field span2">摘要（可选，显示在列表和分享卡片里）
+          <input id="f-desc" type="text" maxlength="500" placeholder="一句话说清这篇写了什么" autocomplete="off" />
+        </label>
+        <label class="field">日期
+          <input id="f-date" type="date" />
+        </label>
+        <label class="field">关键词（逗号分隔，会显示在文章页，也能按它查找）
+          <input id="f-tags" type="text" placeholder="比如：中债，利率，11月" autocomplete="off" />
+        </label>
+        <label class="field span2">文件名（自动根据标题和日期建议，可改；只允许小写字母、数字、连字符）
+          <input id="f-slug" type="text" maxlength="120" placeholder="2026-11-28-my-post" autocomplete="off" spellcheck="false" />
+        </label>
+      </div>
+      <div class="bar" style="margin-top: 18px">
+        <div class="filters" role="group" aria-label="编辑或预览">
+          <button type="button" id="tab-edit" class="on">编辑</button>
+          <button type="button" id="tab-preview">预览</button>
+        </div>
+        <span class="count">正文用 Markdown 写；预览只是参考，最终以构建为准。</span>
+      </div>
+      <textarea id="f-content" rows="22" placeholder="在这里写正文，支持标题、列表、引用、表格、代码块、链接和图片。"></textarea>
+      <div id="preview" class="prose card" style="display:none; padding: 20px 22px; margin-top: 10px"></div>
+      <div class="acts" style="margin-top: 14px">
+        <label class="upload">插入图片
+          <input id="f-image" type="file" accept="image/*" hidden />
+        </label>
+        <span id="img-state" class="count"></span>
+      </div>
+      <p id="state" class="state" role="status"></p>
+      <div class="acts" style="margin-top: 12px">
+        <button type="button" id="b-draft" class="primary">保存为草稿</button>
+        <button type="button" id="b-publish" class="primary">发布</button>
+        <button type="button" id="b-new">新建一篇</button>
+      </div>
+    </form>
+  </section>
+  <section class="block" style="padding-top: 40px">
+    <div class="head"><h2>已有文章</h2><span id="count" class="count"></span></div>
+    <p id="list-state" class="state">加载中…</p>
+    <div id="list" class="list"></div>
+  </section>
+</Base>
+
+<style is:global>
+  .state { font-size: 13px; color: var(--ink-3); margin-top: 12px; }
+  .state.err { color: #FF6B72; }
+  .count { font-size: 13px; color: var(--ink-3); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+  .field { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--ink-2); }
+  .field.span2 { grid-column: span 2; }
+  .field input { font: inherit; font-size: 15px; color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--card-line); border-radius: 10px; padding: 9px 12px; width: 100%; }
+  .field input:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  #f-content { display: block; width: 100%; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--card-line); border-radius: 12px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); font-family: var(--mono); font-size: 14px; line-height: 1.7; resize: vertical; }
+  #f-content:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .filters { display: flex; gap: 4px; }
+  .filters button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .filters button.on { color: var(--ink); border-color: var(--card-line); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  .list { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+  .item { padding: 16px 18px; }
+  .item.draft { opacity: 0.75; }
+  .item .top2 { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-3); }
+  .item .top2 a { color: var(--link); }
+  .item .ttl { font-size: 15.5px; font-weight: 650; margin-top: 6px; }
+  .item .badge { display: inline-block; font-size: 12px; color: var(--ink-2); border: 1px solid var(--card-line); border-radius: 999px; padding: 0 8px; margin-left: 8px; vertical-align: 1px; }
+  .acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .acts button, .upload { height: 34px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--card-line); background: none; color: var(--ink-2); font: inherit; font-size: 13.5px; cursor: pointer; display: inline-flex; align-items: center; }
+  .acts button:hover, .upload:hover { color: var(--ink); border-color: var(--accent); }
+  .acts button.primary { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  .acts button.primary:hover { background: color-mix(in srgb, var(--accent) 26%, transparent); }
+  .acts button.danger:hover { color: #FF6B72; border-color: #FF6B72; }
+  .acts button:disabled { opacity: 0.5; cursor: wait; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .field.span2 { grid-column: span 1; } }
+</style>
+
+<script>
+  type Post = { file: string; sha: string; title: string; description: string; date: string; tags: string[]; draft: boolean };
+  const $ = (id: string) => document.getElementById(id)! as HTMLInputElement;
+  const titleEl = $('f-title'), descEl = $('f-desc'), dateEl = $('f-date'), tagsEl = $('f-tags'), slugEl = $('f-slug');
+  const contentEl = document.getElementById('f-content')! as HTMLTextAreaElement;
+  const previewEl = document.getElementById('preview')!;
+  const stateEl = document.getElementById('state')!;
+  const listEl = document.getElementById('list')!;
+  const listStateEl = document.getElementById('list-state')!;
+  const countEl = document.getElementById('count')!;
+  const tokenNoteEl = document.getElementById('token-note')!;
+  const imgStateEl = document.getElementById('img-state')!;
+  let currentFile: string | null = null; // 正在编辑的已有文件（null = 新建）
+  let slugDirty = false;
+  let tokenMissing = false;
+
+  function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  function slugify(s: string) {
+    const t = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/g, '');
+    return t || 'post';
+  }
+  function suggestSlug() { if (!slugDirty) slugEl.value = `${dateEl.value || todayStr()}-${slugify(titleEl.value)}`; }
+  titleEl.addEventListener('input', suggestSlug);
+  dateEl.addEventListener('input', suggestSlug);
+  slugEl.addEventListener('input', () => { slugDirty = true; });
+
+  function setState(msg: string, isErr = false) { stateEl.textContent = msg; stateEl.className = 'state' + (isErr ? ' err' : ''); }
+  async function api(method: string, url: string, body?: unknown) {
+    const r = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.error || String(r.status)) as Error & { status: number }; e.status = r.status; throw e; }
+    return j;
+  }
+
+  // ---- 简易 Markdown 预览（标题、加粗、斜体、列表、引用、代码块、链接、图片；仅供参考）----
+  function esc(s: string) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function inline(s: string) {
+    return esc(s)
+      .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, '<img alt="$1" src="$2" />')
+      .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, '<a href="$2">$1</a>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  }
+  function renderMd(src: string) {
+    const blocks: string[] = [];
+    src = src.replace(/```([^\n]*)\n([\s\S]*?)```/g, (_m, lang, code) => { blocks.push('<pre><code>' + esc(code.replace(/\n$/, '')) + '</code></pre>'); return `\n@@${blocks.length - 1}@@\n`; });
+    const out: string[] = [];
+    const lines = src.split('\n');
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      const codeM = line.match(/^@@(\d+)@@$/);
+      if (codeM) { out.push(blocks[+codeM[1]]); i++; continue; }
+      const h = line.match(/^(#{1,3})\s+(.*)$/);
+      if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+      if (/^\s*---+\s*$/.test(line)) { out.push('<hr />'); i++; continue; }
+      if (/^\s*>/.test(line)) { const q: string[] = []; while (i < lines.length && /^\s*>/.test(lines[i])) { q.push(lines[i].replace(/^\s*>\s?/, '')); i++; } out.push('<blockquote>' + q.map((x) => inline(x)).join('<br />') + '</blockquote>'); continue; }
+      if (/^\s*([-*]|\d+[.)])\s+/.test(line)) {
+        const items: string[] = []; const ordered = /^\s*\d+[.)]\s+/.test(line);
+        while (i < lines.length && /^\s*([-*]|\d+[.)])\s+/.test(lines[i])) { items.push(lines[i].replace(/^\s*([-*]|\d+[.)])\s+/, '')); i++; }
+        out.push((ordered ? '<ol>' : '<ul>') + items.map((x) => '<li>' + inline(x) + '</li>').join('') + (ordered ? '</ol>' : '</ul>')); continue;
+      }
+      if (line.trim() === '') { i++; continue; }
+      const para: string[] = [];
+      while (i < lines.length && lines[i].trim() !== '' && !/^(#{1,3}\s|@@\d+@@$|\s*>|\s*([-*]|\d+[.)])\s+|\s*---+\s*$)/.test(lines[i])) { para.push(lines[i]); i++; }
+      out.push('<p>' + para.map((x) => inline(x)).join('<br />') + '</p>');
+    }
+    return out.join('\n');
+  }
+  function updatePreview() { previewEl.innerHTML = renderMd(contentEl.value); }
+  contentEl.addEventListener('input', () => { if (previewEl.style.display !== 'none') updatePreview(); });
+  document.getElementById('tab-edit')!.addEventListener('click', () => {
+    contentEl.style.display = ''; previewEl.style.display = 'none';
+    document.getElementById('tab-edit')!.classList.add('on'); document.getElementById('tab-preview')!.classList.remove('on');
+  });
+  document.getElementById('tab-preview')!.addEventListener('click', () => {
+    updatePreview(); contentEl.style.display = 'none'; previewEl.style.display = '';
+    document.getElementById('tab-preview')!.classList.add('on'); document.getElementById('tab-edit')!.classList.remove('on');
+  });
+
+  // ---- 列表 ----
+  async function loadList() {
+    listStateEl.textContent = '加载中…';
+    try {
+      const j = await api('GET', '/api/admin/blog');
+      const posts: Post[] = j.posts || [];
+      listEl.textContent = '';
+      countEl.textContent = `${posts.length} 篇`;
+      listStateEl.textContent = posts.length ? '' : '还没有文章。';
+      for (const p of posts) {
+        const it = document.createElement('div'); it.className = 'item card' + (p.draft ? ' draft' : '');
+        const top = document.createElement('div'); top.className = 'top2';
+        const left = document.createElement('span'); left.textContent = `${p.date || ''}${p.tags.length ? ' · ' + p.tags.join('，') : ''}`;
+        top.append(left);
+        if (!p.draft) { const a = document.createElement('a'); a.href = `/blog/${p.file.replace(/\.md$/, '')}/`; a.textContent = '查看文章'; top.append(a); }
+        const ttl = document.createElement('div'); ttl.className = 'ttl'; ttl.textContent = p.title;
+        const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = p.draft ? '草稿' : '已发布'; ttl.append(badge);
+        const acts = document.createElement('div'); acts.className = 'acts';
+        const bEdit = document.createElement('button'); bEdit.type = 'button'; bEdit.textContent = '编辑';
+        bEdit.onclick = () => loadPost(p.file);
+        const bDel = document.createElement('button'); bDel.type = 'button'; bDel.className = 'danger'; bDel.textContent = '删除';
+        let armed = false;
+        bDel.onclick = async () => {
+          if (!armed) { armed = true; bDel.textContent = '再点一次确认删除'; setTimeout(() => { armed = false; bDel.textContent = '删除'; }, 3000); return; }
+          try { await api('DELETE', '/api/admin/blog?file=' + encodeURIComponent(p.file)); setState(`已删除 ${p.file}。`); if (currentFile === p.file) newPost(); loadList(); }
+          catch (e) { setState('删除失败：' + (e as Error).message, true); }
+        };
+        acts.append(bEdit, bDel);
+        it.append(top, ttl, acts);
+        listEl.append(it);
+      }
+    } catch (e) {
+      const err = e as Error & { status: number };
+      if (err.status === 401) { listStateEl.textContent = '需要登录：请通过 Cloudflare Access 的登录页进入（邮箱验证码）。'; }
+      else if (err.status === 503) {
+        tokenMissing = true;
+        tokenNoteEl.style.display = '';
+        tokenNoteEl.textContent = '未配置 GITHUB_TOKEN：现在可以写，但文章列表和保存都不可用。配置好令牌后刷新本页即可用。';
+        listStateEl.textContent = '未配置 GITHUB_TOKEN，列表暂不可用。';
+      } else listStateEl.textContent = '加载失败，请稍后再试。';
+    }
+  }
+
+  async function loadPost(file: string) {
+    try {
+      const j = await api('GET', '/api/admin/blog?file=' + encodeURIComponent(file));
+      currentFile = file;
+      titleEl.value = j.title || ''; descEl.value = j.description || ''; dateEl.value = j.date || todayStr();
+      tagsEl.value = (j.tags || []).join('，'); slugEl.value = file.replace(/\.md$/, ''); slugDirty = true;
+      contentEl.value = j.content || '';
+      setState(`正在编辑 ${file}${j.draft ? '（草稿）' : ''}。`);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) { setState('打开失败：' + (e as Error).message, true); }
+  }
+
+  function newPost() {
+    currentFile = null; slugDirty = false;
+    titleEl.value = ''; descEl.value = ''; dateEl.value = todayStr(); tagsEl.value = ''; contentEl.value = '';
+    suggestSlug(); setState('');
+  }
+  document.getElementById('b-new')!.addEventListener('click', newPost);
+
+  // ---- 保存 ----
+  async function save(draft: boolean) {
+    const title = titleEl.value.trim();
+    const slug = slugEl.value.trim();
+    const date = dateEl.value;
+    if (!title) { setState('请先写主题。', true); titleEl.focus(); return; }
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) { setState('文件名只允许小写字母、数字、连字符，如 2026-11-28-my-post。', true); slugEl.focus(); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { setState('日期格式不对。', true); return; }
+    const btn = document.getElementById(draft ? 'b-draft' : 'b-publish')! as HTMLButtonElement;
+    btn.disabled = true;
+    setState('保存中…');
+    try {
+      const j = await api(currentFile ? 'PUT' : 'POST', '/api/admin/blog', {
+        slug, title,
+        description: descEl.value.trim(),
+        date,
+        tags: tagsEl.value.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+        content: contentEl.value, draft,
+      });
+      const where = draft ? '已保存为草稿，不会出现在网站上。' : '已发布。';
+      setState(`已保存到 src/content/blog/${j.file}。${where}下次工作日 06:10 / 17:10 自动重部署后上线；想立刻上线，找助手部署。`);
+      currentFile = j.file;
+      loadList();
+    } catch (e) {
+      const err = e as Error & { status: number };
+      if (err.status === 401) setState('需要登录：请通过 Cloudflare Access 的登录页进入（邮箱验证码）。', true);
+      else if (err.status === 503) setState('未配置 GITHUB_TOKEN：请先在 Cloudflare 里配置令牌再保存。', true);
+      else setState('保存失败：' + err.message, true);
+    } finally { btn.disabled = false; }
+  }
+  document.getElementById('b-draft')!.addEventListener('click', () => save(true));
+  document.getElementById('b-publish')!.addEventListener('click', () => save(false));
+
+  // ---- 图片上传：在光标处插入 ![说明](/images/文件名) ----
+  document.getElementById('f-image')!.addEventListener('change', async (ev) => {
+    const input = ev.target as HTMLInputElement;
+    const f = input.files && input.files[0];
+    if (!f) return;
+    imgStateEl.textContent = '上传中…';
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = reject; r.readAsDataURL(f);
+      });
+      const j = await api('POST', '/api/admin/blog', { imageName: f.name, dataBase64: dataUrl.split(',')[1] || '' });
+      const alt = f.name.replace(/\.[^.]+$/, '');
+      const md = `![${alt}](${j.url})`;
+      const start = contentEl.selectionStart ?? contentEl.value.length;
+      const end = contentEl.selectionEnd ?? contentEl.value.length;
+      contentEl.value = contentEl.value.slice(0, start) + md + contentEl.value.slice(end);
+      contentEl.focus();
+      contentEl.selectionStart = contentEl.selectionEnd = start + md.length;
+      imgStateEl.textContent = `已插入 ${j.url}`;
+    } catch (e) {
+      const err = e as Error & { status: number };
+      imgStateEl.textContent = err.status === 503 ? '未配置 GITHUB_TOKEN，图片暂不能上传。' : '上传失败：' + err.message;
+    } finally { input.value = ''; }
+  });
+
+  dateEl.value = todayStr();
+  suggestSlug();
+  loadList();
+</script>

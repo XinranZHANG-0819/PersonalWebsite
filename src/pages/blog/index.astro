@@ -5,14 +5,95 @@ import PostRow from '../../components/PostRow.astro';
 const posts = (await getCollection('blog', (p) => !p.data.draft)).sort((a, b) => +b.data.date - +a.data.date);
 const byYear = new Map<number, typeof posts>();
 for (const p of posts) { const y = p.data.date.getFullYear(); byYear.set(y, [...(byYear.get(y) ?? []), p]); }
+
+// 全部标签（按出现次数排），和一份纯文本搜索索引（标题、摘要、标签、正文）
+function plainText(md: string) {
+  return md
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*`_~]/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+const tagCount = new Map<string, number>();
+for (const p of posts) for (const t of p.data.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+const allTags = [...tagCount.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh')).map(([t]) => t);
+const index = posts.map((p) => ({
+  id: p.id,
+  title: p.data.title,
+  desc: p.data.description ?? '',
+  tags: p.data.tags,
+  text: plainText(p.body),
+}));
+const indexJson = JSON.stringify(index).replace(/</g, '\\u003c');
 ---
 <Base title="文章" description="按时间排列的文章。">
   <div slot="hero" class="page-hero"><div class="wrap"><h1 class="page-title">文章</h1><p class="page-lead">投资、阅读与工作中的思考，按时间排列。</p></div></div>
+  {posts.length > 0 && (
+    <div class="search-bar">
+      <input id="q" type="search" placeholder="搜标题、摘要、关键词、正文…" autocomplete="off" aria-label="搜索文章" />
+      <div class="filters" role="group" aria-label="按关键词筛选">
+        <button type="button" data-tag="" class="on">全部</button>
+        {allTags.map((t) => <button type="button" data-tag={t}>{t}</button>)}
+      </div>
+    </div>
+  )}
+  <script type="application/json" id="post-index" set:html={indexJson}></script>
+  <p id="no-result" class="empty" style="display:none">没有找到相关文章。</p>
   {posts.length === 0 && <p class="empty">还没有文章。</p>}
   {[...byYear].map(([year, list]) => (
-    <section class="block" style="padding-top: 40px">
-      <div class="head"><h2>{year}</h2><span>{list.length} 篇</span></div>
-      {list.map((p) => <PostRow href={`/blog/${p.id}/`} title={p.data.title} date={p.data.date} />)}
+    <section class="block year-sec" style="padding-top: 40px">
+      <div class="head"><h2>{year}</h2><span class="yr-count" data-total={list.length}>{list.length} 篇</span></div>
+      {list.map((p) => (
+        <div class="post-item" data-id={p.id}>
+          <PostRow href={`/blog/${p.id}/`} title={p.data.title} date={p.data.date} />
+        </div>
+      ))}
     </section>
   ))}
 </Base>
+
+<style is:global>
+  .search-bar { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
+  .search-bar input[type="search"] { font: inherit; font-size: 15px; color: var(--ink); background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px solid var(--card-line); border-radius: 10px; padding: 9px 12px; width: 100%; }
+  .search-bar input[type="search"]:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .search-bar .filters { display: flex; flex-wrap: wrap; gap: 6px; }
+  .search-bar .filters button { font: inherit; font-size: 13px; color: var(--ink-2); background: none; border: 1px solid var(--card-line); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+  .search-bar .filters button.on { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+</style>
+
+<script>
+  const idx = JSON.parse(document.getElementById('post-index')!.textContent || '[]') as { id: string; title: string; desc: string; tags: string[]; text: string }[];
+  const byId = new Map(idx.map((p) => [p.id, p]));
+  const q = document.getElementById('q') as HTMLInputElement | null;
+  let activeTag = '';
+  function apply() {
+    const query = (q?.value || '').trim().toLowerCase();
+    let visible = 0;
+    for (const item of document.querySelectorAll<HTMLElement>('.post-item')) {
+      const p = byId.get(item.dataset.id || '');
+      if (!p) { item.style.display = ''; visible++; continue; }
+      const hay = `${p.title}\n${p.desc}\n${p.tags.join(' ')}\n${p.text}`.toLowerCase();
+      const ok = (!activeTag || p.tags.includes(activeTag)) && (!query || hay.includes(query));
+      item.style.display = ok ? '' : 'none';
+      if (ok) visible++;
+    }
+    for (const sec of document.querySelectorAll<HTMLElement>('.year-sec')) {
+      const shown = [...sec.querySelectorAll('.post-item')].filter((el) => (el as HTMLElement).style.display !== 'none').length;
+      sec.style.display = shown ? '' : 'none';
+      const count = sec.querySelector('.yr-count');
+      if (count) count.textContent = `${shown} 篇`;
+    }
+    document.getElementById('no-result')!.style.display = visible ? 'none' : '';
+  }
+  q?.addEventListener('input', apply);
+  document.querySelectorAll<HTMLButtonElement>('.search-bar .filters button').forEach((b) => {
+    b.addEventListener('click', () => {
+      activeTag = b.dataset.tag === activeTag ? '' : (b.dataset.tag || '');
+      document.querySelectorAll<HTMLButtonElement>('.search-bar .filters button').forEach((o) => o.classList.toggle('on', (o.dataset.tag || '') === activeTag));
+      apply();
+    });
+  });
+</script>
